@@ -64,6 +64,17 @@ clasp create
 "use strict";
 ```
 
+### spreadsheetから受け取る引数の型
+
+題は以下のように振る舞います.
+
+- 単一の空白は, `string`
+- 単一の文字列は, `string`
+- 単一の数値は, `number`
+- 配列は, その中身にかかわらず`string`を要素型とする配列
+
+`number[]`や`number[][]`で受け取らないようにしてください.
+
 ### `@customfunction`と`@OnlyCurrentDoc`
 
 suctom functionすなわちspreadsheetの数式エディタにて呼び出す関数に`@customfunction`JsDocタグを付加すると, 数式エディタで補完等が有効になります.  
