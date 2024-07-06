@@ -1,0 +1,5 @@
+.vscode/*
+node_modules/*
+src/**/*.json
+.clasp.json
+package-lock.json
