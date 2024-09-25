@@ -7,6 +7,7 @@ function onOpen(event: GoogleAppsScript.Events.SheetsOnOpen): void {
   const subMenus: { name: string; functionName: string }[] = [
     { name: "目次作成", functionName: "createIndex" },
     { name: "行サイズを調整する", functionName: "adjustRowSize" },
+    { name: "インポート", functionName: "ImportCSV.main" },
   ];
 
   spreadsheet.addMenu("スクリプト", subMenus);

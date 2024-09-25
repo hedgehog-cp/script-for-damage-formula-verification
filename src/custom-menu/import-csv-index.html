@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8" />
+    <base target="_top" />
+    <style>
+        fieldset {
+            margin-bottom: 20px;
+        }
+
+        #ok-button {
+            background-color: RGB(0, 117, 255);
+            color: #fff;
+            text-decoration: none;
+            font-size: 1em;
+
+            /* 押下するとへこむ */
+            box-shadow: 0 5px 0 RGB(0, 117, 255);
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        /* 押下するとへこむ */
+        #ok-button:active {
+            box-shadow: none;
+            transform: translateY(5px);
+        }
+    </style>
+    <script>
+        // おまじない 人-。-
+        // https://zenn.dev/zaki_yama/articles/gas-form-dialog
+        // https://developers.google.com/apps-script/guides/html/communication?hl=ja#forms
+        function preventFormSubmit() {
+            const forms = document.querySelectorAll("form");
+            forms.forEach((form) => {
+                form.addEventListener("submit", function (event) {
+                    event.preventDefault();
+                });
+            });
+        }
+        window.addEventListener("load", preventFormSubmit);
+
+        function main() {
+            const settings /* : ImportCSVSettings */ = {
+                id: "<?= id ?>",
+                encoding: document.querySelector('input[name="encoding"]:checked').value,
+                ignore: {
+                    damage0: document.getElementById('damage0').checked,
+                    critical0: document.getElementById('critical0').checked,
+                },
+                select: {
+                    attackKind: document.getElementById('attack-kind').value
+                }
+            };
+            google.script.run.ImportCSV_import(settings);
+        }
+    </script>
+</head>
+
+<body>
+    <form id="form" onsubmit="main()">
+        <fieldset>
+            <legend>次のファイルを読み込みます</legend>
+            <strong>
+                <?= filename ?>
+            </strong>
+            <br>
+            <?= update ?>
+        </fieldset>
+
+        <fieldset>
+            <legend>文字コード</legend>
+            <div>
+                <label>
+                    <input type="radio" id="utf-8" name="encoding" value="UTF-8" checked />
+                    UTF-8
+                </label>
+            </div>
+            <div>
+                <label>
+                    <input type="radio" id="shift-jis" name="encoding" value="Shift-JIS" />
+                    Shift-JIS
+                </label>
+            </div>
+        </fieldset>
+
+        <fieldset>
+            <legend>フィルタ</legend>
+            <div>
+                <label>
+                    <input type="checkbox" id="damage0" name="damage0" checked />
+                    ダメージ0を出力しない
+                </label>
+            </div>
+            <div>
+                <label>
+                    <input type="checkbox" id="critical0" name="critical0" checked />
+                    クリティカル0出力しない
+                </label>
+            </div>
+            <div>
+                <label>
+                    砲撃種別
+                    <input type="number" id="attack-kind" name="attack-kind" value="-1" min="-1" max="500" />
+                    を出力する
+                </label>
+            </div>
+        </fieldset>
+
+        <input type="submit" id="ok-button" value="OK" style="height:50px; width:120px">
+    </form>
+</body>
+
+</html>
