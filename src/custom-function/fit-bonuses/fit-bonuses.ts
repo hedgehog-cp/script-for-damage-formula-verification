@@ -100,7 +100,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [955, 960],
+        shipX: [955, 956, 960],
         num: 1,
         bonusAR: {
           tyku: 2,
@@ -205,6 +205,22 @@ const fit_bonuses: fit_bonuses_t[] = [
         num: 1,
         bonus: {
           raig: 5,
+        },
+      },
+      {
+        shipX: [694],
+        num: 1,
+        bonus: {
+          houg: 4,
+          raig: 1,
+        },
+      },
+      {
+        shipX: [694],
+        requires: [174],
+        num: 1,
+        bonus: {
+          raig: 7,
         },
       },
     ],
@@ -442,7 +458,7 @@ const fit_bonuses: fit_bonuses_t[] = [
     ids: [35],
     bonuses: [
       {
-        shipX: [149, 591, 592],
+        shipX: [149, 591, 592, 694],
         num: 1,
         bonus: {
           houg: 1,
@@ -1096,7 +1112,7 @@ const fit_bonuses: fit_bonuses_t[] = [
     ids: [87],
     bonuses: [
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         num: 1,
         bonus: {
           raig: 1,
@@ -1104,7 +1120,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         level: 6,
         num: 1,
         bonus: {
@@ -1112,7 +1128,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         level: 8,
         num: 1,
         bonus: {
@@ -1120,7 +1136,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         level: 10,
         num: 1,
         bonus: {
@@ -1375,7 +1391,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [150, 152, 592],
+        shipX: [150, 152, 592, 694],
         bonus: {
           houg: 1,
         },
@@ -1902,7 +1918,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 954],
+        shipX: [591, 592, 694, 954],
         bonus: {
           raig: 6,
           kaih: 3,
@@ -2006,7 +2022,7 @@ const fit_bonuses: fit_bonuses_t[] = [
     ids: [204],
     bonuses: [
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         num: 1,
         bonus: {
           raig: 1,
@@ -2014,7 +2030,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         level: 7,
         num: 1,
         bonus: {
@@ -2022,7 +2038,23 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [694],
+        level: 7,
+        num: 1,
+        bonus: {
+          souk: 1,
+        },
+      },
+      {
+        shipX: [591, 592, 593, 694, 954],
+        level: 10,
+        num: 1,
+        bonus: {
+          raig: 1,
+        },
+      },
+      {
+        shipX: [694],
         level: 10,
         num: 1,
         bonus: {
@@ -2535,7 +2567,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 960],
+        shipX: [229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 956, 960],
         num: 1,
         bonusSR: {
           houg: 1,
@@ -2553,7 +2585,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [955],
+        shipX: [955, 956],
         num: 1,
         bonusSR: {
           raig: -1,
@@ -2567,7 +2599,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [648, 649, 955, 960, 961],
+        shipX: [648, 649, 955, 956, 960, 961],
         bonus: {
           houg: 2,
         },
@@ -2623,13 +2655,15 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [648, 649, 955, 960, 961],
+        shipX: [648, 649, 955, 956, 960, 961],
         bonus: {
           houg: 2,
         },
       },
       {
-        shipX: [229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 960, 961],
+        shipX: [
+          229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 956, 960, 961,
+        ],
         num: 1,
         bonus: {
           houg: 1,
@@ -2638,7 +2672,9 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 960, 961],
+        shipX: [
+          229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 956, 960, 961,
+        ],
         num: 1,
         bonusSR: {
           houg: 2,
@@ -2656,7 +2692,9 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 960, 961],
+        shipX: [
+          229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 956, 960, 961,
+        ],
         num: 1,
         bonusAR: {
           houg: 1,
@@ -2666,7 +2704,9 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 960, 961],
+        shipX: [
+          229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 956, 960, 961,
+        ],
         num: 2,
         bonus: {
           houg: 2,
@@ -2681,21 +2721,27 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 960, 961],
+        shipX: [
+          229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 956, 960, 961,
+        ],
         level: 5,
         bonus: {
           houm: 1,
         },
       },
       {
-        shipX: [229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 960, 961],
+        shipX: [
+          229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 956, 960, 961,
+        ],
         level: 8,
         bonus: {
           houg: 1,
         },
       },
       {
-        shipX: [229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 960, 961],
+        shipX: [
+          229, 542, 543, 563, 564, 569, 578, 648, 649, 955, 956, 960, 961,
+        ],
         level: 10,
         bonus: {
           houm: 1,
@@ -2955,7 +3001,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         shipX: [
           144, 145, 198, 199, 463, 464, 468, 469, 470, 489, 490, 497, 498, 542,
           543, 563, 564, 566, 567, 568, 569, 578, 587, 588, 648, 649, 651, 656,
-          667, 670, 915, 951, 955, 960, 961, 975,
+          667, 670, 915, 951, 955, 956, 960, 961, 975,
         ],
         num: 1,
         bonus: {
@@ -2967,7 +3013,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         shipX: [
           144, 145, 198, 199, 463, 464, 468, 469, 470, 489, 490, 497, 498, 542,
           543, 563, 564, 566, 567, 568, 569, 578, 587, 588, 648, 649, 651, 656,
-          667, 670, 915, 951, 955, 960, 961, 975,
+          667, 670, 915, 951, 955, 956, 960, 961, 975,
         ],
         num: 2,
         bonus: {
@@ -2979,7 +3025,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         shipX: [
           144, 145, 198, 199, 463, 464, 468, 469, 470, 489, 490, 497, 498, 542,
           543, 563, 564, 566, 567, 568, 569, 578, 587, 588, 648, 649, 651, 656,
-          667, 670, 915, 951, 955, 960, 961, 975,
+          667, 670, 915, 951, 955, 956, 960, 961, 975,
         ],
         level: 10,
         num: 1,
@@ -2991,7 +3037,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         shipX: [
           144, 145, 198, 199, 463, 464, 468, 469, 470, 489, 490, 497, 498, 542,
           543, 563, 564, 566, 567, 568, 569, 578, 587, 588, 648, 649, 651, 656,
-          667, 670, 915, 951, 955, 960, 961, 975,
+          667, 670, 915, 951, 955, 956, 960, 961, 975,
         ],
         level: 10,
         num: 2,
@@ -3004,7 +3050,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         shipX: [
           144, 145, 198, 199, 463, 464, 468, 469, 470, 489, 490, 497, 498, 542,
           543, 563, 564, 566, 567, 568, 569, 578, 587, 588, 648, 649, 651, 656,
-          667, 670, 915, 951, 955, 960, 961, 975,
+          667, 670, 915, 951, 955, 956, 960, 961, 975,
         ],
         level: 5,
         num: 1,
@@ -3017,7 +3063,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         shipX: [
           144, 145, 198, 199, 463, 464, 468, 469, 470, 489, 490, 497, 498, 542,
           543, 563, 564, 566, 567, 568, 569, 578, 587, 588, 648, 649, 651, 656,
-          667, 670, 915, 951, 955, 960, 961, 975,
+          667, 670, 915, 951, 955, 956, 960, 961, 975,
         ],
         level: 5,
         num: 2,
@@ -3137,7 +3183,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [150, 152, 592],
+        shipX: [150, 152, 592, 694],
         bonus: {
           houg: 1,
         },
@@ -3236,21 +3282,21 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [149, 150, 152, 592],
+        shipX: [149, 150, 152, 592, 694],
         level: 7,
         bonus: {
           tyku: 1,
         },
       },
       {
-        shipX: [149, 150, 152, 592],
+        shipX: [149, 150, 152, 592, 694],
         level: 9,
         bonus: {
           houg: 1,
         },
       },
       {
-        shipX: [149, 150, 152, 592],
+        shipX: [149, 150, 152, 592, 694],
         level: 10,
         bonus: {
           kaih: 1,
@@ -3728,7 +3774,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592],
+        shipX: [591, 592, 694],
         bonus: {
           houg: 2,
           souk: 1,
@@ -4165,7 +4211,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [152],
+        shipX: [152, 694],
         num: 1,
         bonus: {
           houg: 2,
@@ -4454,7 +4500,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [592, 954],
+        shipX: [592, 694, 954],
         bonus: {
           houg: 2,
           tyku: 1,
@@ -4512,6 +4558,14 @@ const fit_bonuses: fit_bonuses_t[] = [
           houg: 2,
           raig: 1,
           tyku: 3,
+        },
+      },
+      {
+        shipX: [694],
+        bonus: {
+          houg: 4,
+          raig: 1,
+          tyku: 1,
         },
       },
       {
@@ -5126,7 +5180,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 954],
+        shipX: [591, 592, 694, 954],
         num: 1,
         bonus: {
           houg: 2,
@@ -7272,6 +7326,14 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
+        shipX: [694],
+        num: 1,
+        bonus: {
+          houg: 4,
+          tyku: 2,
+        },
+      },
+      {
         shipX: [541, 553, 554, 573],
         num: 1,
         bonus: {
@@ -7294,6 +7356,24 @@ const fit_bonuses: fit_bonuses_t[] = [
         num: 1,
         bonus: {
           houg: 1,
+          tyku: 1,
+        },
+      },
+      {
+        shipX: [694],
+        level: 5,
+        num: 1,
+        bonus: {
+          houg: 1,
+          tyku: 1,
+        },
+      },
+      {
+        shipX: [694],
+        level: 10,
+        num: 1,
+        bonus: {
+          houg: 2,
           tyku: 1,
         },
       },
@@ -8676,56 +8756,56 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipS: [900],
+        shipS: [900, 943],
         bonus: {
           houg: 1,
           tais: 3,
         },
       },
       {
-        shipS: [900],
+        shipS: [900, 943],
         level: 1,
         bonus: {
           houg: 2,
         },
       },
       {
-        shipS: [900],
+        shipS: [900, 943],
         level: 2,
         bonus: {
           houm: 1,
         },
       },
       {
-        shipS: [900],
+        shipS: [900, 943],
         level: 3,
         bonus: {
           tais: 1,
         },
       },
       {
-        shipS: [900],
+        shipS: [900, 943],
         level: 4,
         bonus: {
           houg: 1,
         },
       },
       {
-        shipS: [900],
+        shipS: [900, 943],
         level: 6,
         bonus: {
           houm: 1,
         },
       },
       {
-        shipS: [900],
+        shipS: [900, 943],
         level: 8,
         bonus: {
           tais: 1,
         },
       },
       {
-        shipS: [900],
+        shipS: [900, 943],
         level: 10,
         bonus: {
           houg: 1,
@@ -10348,6 +10428,15 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
+        shipX: [694],
+        num: 1,
+        bonus: {
+          houg: 3,
+          tyku: 2,
+          kaih: 1,
+        },
+      },
+      {
         shipX: [546, 911, 916],
         num: 1,
         bonus: {
@@ -10906,7 +10995,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [592],
+        shipX: [592, 694],
         bonus: {
           houg: 1,
           tyku: 1,
@@ -11003,21 +11092,21 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [149, 150, 152, 592],
+        shipX: [149, 150, 152, 592, 694],
         level: 5,
         bonus: {
           kaih: 1,
         },
       },
       {
-        shipX: [149, 150, 152, 592],
+        shipX: [149, 150, 152, 592, 694],
         level: 8,
         bonus: {
           houg: 1,
         },
       },
       {
-        shipX: [149, 150, 152, 592],
+        shipX: [149, 150, 152, 592, 694],
         level: 10,
         bonus: {
           tyku: 1,
@@ -11169,7 +11258,15 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [593, 954],
+        shipX: [694],
+        bonus: {
+          houg: 4,
+          tyku: 1,
+          houm: 1,
+        },
+      },
+      {
+        shipX: [593, 694, 954],
         level: 1,
         bonus: {
           houg: 1,
@@ -11190,28 +11287,28 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [593, 954],
+        shipX: [593, 694, 954],
         level: 6,
         bonus: {
           houg: 1,
         },
       },
       {
-        shipX: [593, 954],
+        shipX: [593, 694, 954],
         level: 8,
         bonus: {
           tyku: 1,
         },
       },
       {
-        shipX: [593, 954],
+        shipX: [593, 694, 954],
         level: 10,
         bonus: {
           houm: 1,
         },
       },
       {
-        shipX: [151, 591, 592],
+        shipX: [151, 591, 592, 694],
         level: 2,
         bonus: {
           houg: 1,
@@ -11246,7 +11343,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [149, 150, 152],
+        shipX: [149, 150, 152, 694],
         level: 4,
         bonus: {
           houm: 1,
@@ -11276,7 +11373,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [151, 591, 592, 593],
+        shipX: [151, 591, 592, 593, 694],
         num: 1,
         bonusSR: {
           houg: 2,
@@ -11285,7 +11382,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         requires: [174],
         num: 1,
         bonus: {
@@ -11293,7 +11390,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         requires: [174],
         requiresLevel: 6,
         num: 1,
@@ -11302,7 +11399,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         requires: [174],
         requiresLevel: 8,
         num: 1,
@@ -11311,7 +11408,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         requires: [174],
         requiresLevel: 10,
         num: 1,
@@ -11320,7 +11417,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         num: 1,
         bonusAccR: {
           houg: 2,
@@ -12676,7 +12773,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [592],
+        shipX: [592, 694],
         bonus: {
           houg: 4,
         },
@@ -12688,7 +12785,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 954],
+        shipX: [591, 592, 694, 954],
         bonus: {
           tyku: 2,
         },
@@ -12700,56 +12797,56 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [592],
+        shipX: [592, 694],
         bonus: {
           houg: 1,
           houm: 2,
         },
       },
       {
-        shipX: [592],
+        shipX: [592, 694],
         level: 2,
         bonus: {
           houm: 1,
         },
       },
       {
-        shipX: [592],
+        shipX: [592, 694],
         level: 4,
         bonus: {
           houg: 1,
         },
       },
       {
-        shipX: [592],
+        shipX: [592, 694],
         level: 6,
         bonus: {
           souk: 1,
         },
       },
       {
-        shipX: [592],
+        shipX: [592, 694],
         level: 7,
         bonus: {
           houm: 1,
         },
       },
       {
-        shipX: [592],
+        shipX: [592, 694],
         level: 8,
         bonus: {
           houg: 1,
         },
       },
       {
-        shipX: [592],
+        shipX: [592, 694],
         level: 9,
         bonus: {
           souk: 1,
         },
       },
       {
-        shipX: [592],
+        shipX: [592, 694],
         level: 10,
         bonus: {
           houm: 1,
@@ -12818,7 +12915,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [592],
+        shipX: [592, 694],
         num: 1,
         bonusSR: {
           houg: 3,
@@ -12827,21 +12924,28 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [592],
+        shipX: [592, 694],
         num: 2,
         bonus: {
           houm: 2,
         },
       },
       {
-        shipX: [592],
+        shipX: [592, 694],
         num: 3,
         bonus: {
           houm: 2,
         },
       },
       {
-        shipX: [592],
+        shipX: [694],
+        num: 3,
+        bonus: {
+          houg: 3,
+        },
+      },
+      {
+        shipX: [592, 694],
         num: 4,
         bonus: {
           houm: 2,
@@ -12854,6 +12958,13 @@ const fit_bonuses: fit_bonuses_t[] = [
           houg: 2,
           kaih: 2,
           houm: 2,
+        },
+      },
+      {
+        shipX: [694],
+        num: 1,
+        bonusSR: {
+          houg: 4,
         },
       },
       {
@@ -12878,14 +12989,14 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [149, 150, 151, 152, 591, 592, 593, 954],
+        shipX: [149, 150, 151, 152, 591, 592, 593, 694, 954],
         num: 1,
         bonusAccR: {
           houm: 1,
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         requires: [174],
         num: 1,
         bonus: {
@@ -12893,7 +13004,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         requires: [174],
         requiresLevel: 6,
         num: 1,
@@ -12902,7 +13013,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         requires: [174],
         requiresLevel: 8,
         num: 1,
@@ -12911,7 +13022,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         requires: [174],
         requiresLevel: 10,
         num: 1,
@@ -12920,7 +13031,7 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [591, 592, 593, 694, 954],
         num: 1,
         bonusAccR: {
           houg: 2,
@@ -12944,7 +13055,14 @@ const fit_bonuses: fit_bonuses_t[] = [
         },
       },
       {
-        shipX: [591, 592, 593, 954],
+        shipX: [694],
+        num: 1,
+        bonusAccR: {
+          houg: 3,
+        },
+      },
+      {
+        shipX: [591, 592, 593, 694, 954],
         num: 2,
         bonus: {
           houm: 1,
@@ -13638,6 +13756,112 @@ const fit_bonuses: fit_bonuses_t[] = [
         bonus: {
           saku: 1,
           houm: 1,
+        },
+      },
+    ],
+  },
+  {
+    ids: [549],
+    bonuses: [
+      {
+        shipS: [161, 900, 943],
+        bonus: {
+          houg: 2,
+          kaih: 1,
+          tais: 4,
+          houm: 1,
+        },
+      },
+      {
+        shipClass: [27, 76],
+        bonus: {
+          houg: 1,
+          tais: 1,
+          houm: 1,
+        },
+      },
+      {
+        shipS: [161, 900, 943],
+        level: 3,
+        bonus: {
+          houg: 1,
+        },
+      },
+      {
+        shipS: [161, 900, 943],
+        level: 4,
+        bonus: {
+          houm: 1,
+        },
+      },
+      {
+        shipS: [161, 900, 943],
+        level: 5,
+        bonus: {
+          tais: 1,
+        },
+      },
+      {
+        shipS: [161, 900, 943],
+        level: 6,
+        bonus: {
+          kaih: 1,
+        },
+      },
+      {
+        shipS: [161, 900, 943],
+        level: 7,
+        bonus: {
+          houg: 1,
+        },
+      },
+      {
+        shipS: [161, 900, 943],
+        level: 8,
+        bonus: {
+          houm: 1,
+        },
+      },
+      {
+        shipS: [161, 900, 943],
+        level: 9,
+        bonus: {
+          tais: 1,
+        },
+      },
+      {
+        shipS: [161, 900, 943],
+        level: 10,
+        bonus: {
+          houg: 1,
+        },
+      },
+      {
+        shipClass: [27, 76],
+        level: 4,
+        bonus: {
+          tais: 1,
+        },
+      },
+      {
+        shipClass: [27, 76],
+        level: 6,
+        bonus: {
+          kaih: 1,
+        },
+      },
+      {
+        shipClass: [27, 76],
+        level: 8,
+        bonus: {
+          houm: 1,
+        },
+      },
+      {
+        shipClass: [27, 76],
+        level: 10,
+        bonus: {
+          houg: 1,
         },
       },
     ],
