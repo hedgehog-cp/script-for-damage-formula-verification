@@ -13,7 +13,12 @@ function calc_tais_bonus(
   slotitem_levels: string[][],
   rows: number
 ): number[] {
-  const bonus = calc_bonus(attacker_ids, slotitem_ids, slotitem_levels, rows);
+  const bonus = calc_bonus(
+    attacker_ids.map((e) => Number(e)),
+    slotitem_ids.map((arr) => arr.map((e) => Number(e))),
+    slotitem_levels.map((arr) => arr.map((e) => Number(e))),
+    rows
+  );
   return bonus.map((v) => v.tais || 0);
 }
 
@@ -32,31 +37,42 @@ function calc_raig_bonus(
   slotitem_levels: string[][],
   rows: number
 ): number[] {
-  const bonus = calc_bonus(attacker_ids, slotitem_ids, slotitem_levels, rows);
+  const { ids, levels } = priority_filter(
+    slotitem_ids.map((arr) => arr.map((e) => Number(e))),
+    slotitem_levels.map((arr) => arr.map((e) => Number(e))),
+    rows
+  );
+
+  const bonus = calc_bonus(
+    attacker_ids.map((e) => Number(e)),
+    ids,
+    levels,
+    rows
+  );
   return bonus.map((v) => v.raig || 0);
 }
 
 /**
  * 装備ボーナスを計算し, これを返します.
- * @param { strign[] } attacker_ids 攻撃艦の艦船IDの配列
- * @param { strign[][] } slotitem_ids 攻撃艦が装備している装備の装備IDすべての配列.
- * @param { strign[][] } slotitem_levels 攻撃艦が装備している装備の改修値すべての配列.
+ * @param { number[] } attacker_ids 攻撃艦の艦船IDの配列
+ * @param { number[][] } slotitem_ids 攻撃艦が装備している装備の装備IDすべての配列.
+ * @param { number[][] } slotitem_levels 攻撃艦が装備している装備の改修値すべての配列.
  * @param { number } rows データ件数. 引数のそれぞれの配列サイズ.
  * @returns { bonus_t[] } 装備ボーナス
  */
 function calc_bonus(
-  attacker_ids: string[],
-  slotitem_ids: string[][],
-  slotitem_levels: string[][],
+  attacker_ids: number[],
+  slotitem_ids: number[][],
+  slotitem_levels: number[][],
   rows: number
 ): bonus_t[] {
   const result: bonus_t[] = [];
 
   for (let i = 0; i < rows; i++) {
     const attacker = build_attacker(
-      attacker_ids[i] as string,
-      slotitem_ids[i] as string[],
-      slotitem_levels[i] as string[]
+      attacker_ids[i] as number,
+      slotitem_ids[i] as number[],
+      slotitem_levels[i] as number[]
     );
 
     if (attacker === undefined) {
@@ -82,30 +98,26 @@ function calc_bonus(
 
 /**
  * 引数から攻撃艦を構築してこれを返します. 構築できないときundefinedを返します.
- * @param attacker_id 攻撃艦の艦船ID.
- * @param slotitem_ids 攻撃艦が装備している装備の装備IDすべて.
- * @param slotitem_levels 攻撃艦が装備している装備の改修値すべて.
+ * @param { number } attacker_id 攻撃艦の艦船ID.
+ * @param { number[] } slotitem_ids 攻撃艦が装備している装備の装備IDすべて.
+ * @param { number[] } slotitem_levels 攻撃艦が装備している装備の改修値すべて.
  * @returns 構築した攻撃艦またはundefined
  */
 function build_attacker(
-  attacker_id: string,
-  slotitem_ids: string[],
-  slotitem_levels: string[]
+  attacker_id: number,
+  slotitem_ids: number[],
+  slotitem_levels: number[]
 ): attacker_t | undefined {
   const id = Number(attacker_id);
   const mst_ship = to_master(id, api_mst_ship);
   if (mst_ship === undefined) return undefined;
 
-  // それぞれの配列長はslot_sizeであることにする.
-  const slot_size = 6;
-  const ids = slotitem_ids.map((v) => Number(v));
-  // 空の装備の改修値を-1にする. 0にすると条件0以上で困るかもしれない.
-  const levels = slotitem_levels.map((v) => (v === "" ? -1 : Number(v)));
+  const slot_size = Math.min(slotitem_ids.length, slotitem_levels.length);
   const slotitems: slotitem_t[] = [];
   for (let i = 0; i < slot_size; i++) {
-    const id = ids[i] as number;
+    const id = slotitem_ids[i] as number;
     const mst_slotitem = to_master(id, api_mst_slotitem);
-    const level = levels[i] as number;
+    const level = slotitem_levels[i] as number;
     slotitems.push(new slotitem_t(mst_slotitem, level));
   }
 
@@ -275,4 +287,196 @@ function get_bonuses_object(attacker: attacker_t): bonus_t[] {
   } // for bonuses of fit_bonuses
 
   return result;
+}
+
+/**
+ * @see https://x.com/Divinity_123/status/1854937456086311200
+ * @see https://docs.google.com/spreadsheets/d/1pXwnNTIYkMYXwJqYA1-J2TQNyr_MF9eSdOr8r_guZY4/edit?gid=787357589#gid=787357589
+ *
+ * @param { number[][] } slotitem_ids 攻撃艦が装備している装備の装備IDすべての配列.
+ * @param { number[][] } slotitem_levels 攻撃艦が装備している装備の改修値すべての配列.
+ * @param { number } rows データ件数. 引数のそれぞれの配列サイズ.
+ * @returns  { {ids: number[][], levels: number[][]} } 優先度でフィルタリングされた装備IDと改修値.
+ */
+function priority_filter(
+  slotitem_ids: number[][],
+  slotitem_levels: number[][],
+  rows: number
+) {
+  const result_ids: number[][] = [];
+  const result_levels: number[][] = [];
+
+  // for self-stackable
+  const get_filtered_value = function (
+    id: number,
+    ids: number[],
+    levels: number[],
+    slot_size: number
+  ) {
+    const temp_ids: number[] = [];
+    const temp_levels: number[] = [];
+    for (let i = 0; i < slot_size; i++) {
+      if (ids[i] == id) {
+        temp_ids.push(ids[i] as number);
+        temp_levels.push(levels[i] as number);
+      }
+    }
+    return { filtered_ids: temp_ids, filtered_levels: temp_levels };
+  };
+
+  // for no self-stackable
+  const get_value_of_max_level = function (
+    id: number,
+    ids: number[],
+    levels: number[]
+  ) {
+    let max_index = -Infinity;
+    let max_level = -Infinity;
+    for (let i = 0, len = Math.min(ids.length, levels.length); i < len; i++) {
+      if (ids[i] == id && (levels[i] as number) > max_level) {
+        max_level = levels[i] as number;
+        max_index = i;
+      }
+    }
+    return { id: ids[max_index] as number, level: levels[max_index] as number };
+  };
+
+  for (let row = 0; row < rows; row++) {
+    const ids = slotitem_ids[row] as number[];
+    const levels = slotitem_levels[row] as number[];
+    const slot_size: number = Math.min(ids.length, levels.length);
+
+    // // 522: 零式小型水上機
+    // // 523: 零式小型水上機(熟練)
+    if (ids.includes(522) || ids.includes(523)) {
+      const {
+        filtered_ids: filtered_ids_522,
+        filtered_levels: filtered_levels_522,
+      } = get_filtered_value(522, ids, levels, slot_size);
+
+      const {
+        filtered_ids: filtered_ids_523,
+        filtered_levels: filtered_levels_523,
+      } = get_filtered_value(523, ids, levels, slot_size);
+
+      result_ids.push(filtered_ids_522.concat(filtered_ids_523));
+      result_levels.push(filtered_levels_522.concat(filtered_levels_523));
+      continue;
+    }
+
+    // // 238: 零式水上偵察機11型乙
+    // // 239: 零式水上偵察機11型乙(熟練)
+    if (ids.includes(238) || ids.includes(239)) {
+      if (ids.includes(238)) {
+        const { id, level } = get_value_of_max_level(238, ids, levels);
+        result_ids.push([id]);
+        result_levels.push([level]);
+        continue;
+      }
+
+      if (ids.includes(239)) {
+        const { id, level } = get_value_of_max_level(239, ids, levels);
+        result_ids.push([id]);
+        result_levels.push([level]);
+        continue;
+      }
+    }
+
+    // // 521: 紫雲(熟練)
+    if (ids.includes(521)) {
+      const { filtered_ids, filtered_levels } = get_filtered_value(
+        521,
+        ids,
+        levels,
+        slot_size
+      );
+      result_ids.push(filtered_ids);
+      result_levels.push(filtered_levels);
+      continue;
+    }
+
+    // // 118: 紫雲
+    if (ids.includes(118)) {
+      const { filtered_ids, filtered_levels } = get_filtered_value(
+        118,
+        ids,
+        levels,
+        slot_size
+      );
+      result_ids.push(filtered_ids);
+      result_levels.push(filtered_levels);
+      continue;
+    }
+
+    // // 369: Swordfish Mk.III改(水上機型/熟練)
+    if (ids.includes(369)) {
+      const { id, level } = get_value_of_max_level(369, ids, levels);
+      result_ids.push([id]);
+      result_levels.push([level]);
+      continue;
+    }
+
+    // // 368: Swordfish Mk.III改(水上機型)
+    if (ids.includes(368)) {
+      const { id, level } = get_value_of_max_level(368, ids, levels);
+      result_ids.push([id]);
+      result_levels.push([level]);
+      continue;
+    }
+
+    // // 372: 天山一二型甲
+    if (ids.includes(372)) {
+      const { id, level } = get_value_of_max_level(372, ids, levels);
+      result_ids.push([id]);
+      result_levels.push([level]);
+      continue;
+    }
+
+    // // 373: 天山一二型甲改(空六号電探改装備機)
+    if (ids.includes(373)) {
+      const { id, level } = get_value_of_max_level(373, ids, levels);
+      result_ids.push([id]);
+      result_levels.push([level]);
+      continue;
+    }
+
+    // // 374: 天山一二型甲改(熟練/空六号電探改装備機)
+    if (ids.includes(374)) {
+      const { id, level } = get_value_of_max_level(374, ids, levels);
+      result_ids.push([id]);
+      result_levels.push([level]);
+      continue;
+    }
+
+    // // 425: Barracuda Mk.III
+    if (ids.includes(425)) {
+      const { filtered_ids, filtered_levels } = get_filtered_value(
+        425,
+        ids,
+        levels,
+        slot_size
+      );
+      result_ids.push(filtered_ids);
+      result_levels.push(filtered_levels);
+      continue;
+    }
+
+    // // 424: Barracuda Mk.II
+    if (ids.includes(424)) {
+      const { filtered_ids, filtered_levels } = get_filtered_value(
+        424,
+        ids,
+        levels,
+        slot_size
+      );
+      result_ids.push(filtered_ids);
+      result_levels.push(filtered_levels);
+      continue;
+    }
+
+    result_ids.push(ids);
+    result_levels.push(levels);
+  }
+
+  return { ids: result_ids, levels: result_levels };
 }
