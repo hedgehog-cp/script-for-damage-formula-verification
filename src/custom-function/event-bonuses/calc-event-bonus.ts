@@ -3,23 +3,49 @@ namespace event_bonuses {
     attacker: attacker_t,
     map: event_bonuses.map,
     abyss_id: number,
+    xal01: 0 | 1,
     phase: event_bonuses.phase
-  ) {
+  ): event_bonuses.modifier[] {
     return event_bonuses.bonuses
-      .filter(
-        (e) =>
-          matches_attacker(e.cnd, attacker) &&
-          matches_map(e.cnd, map) &&
-          matches_abyss_ship(e.cnd, abyss_id) &&
-          matches_phase(e.cnd, phase)
-      )
-      .map((e) => e.mod);
+      .filter((e) => matches_map(e.map, map))
+      .flatMap((e) =>
+        e.bonuses
+          .filter(
+            (bonus) =>
+              matches_attacker(bonus.cnd, attacker) &&
+              matches_equipment(bonus.cnd, attacker.slot) &&
+              matches_abyss_ship(bonus.cnd, abyss_id) &&
+              matches_xal01(bonus.cnd, xal01) &&
+              matches_phase(bonus.cnd, phase)
+          )
+          .map((bonus) => bonus.mod)
+      );
+  }
+
+  function matches_map(
+    cnd: event_bonuses.map,
+    map: event_bonuses.map
+  ): boolean {
+    if (cnd.maparea_id && cnd.maparea_id !== map.maparea_id) {
+      return false;
+    }
+
+    if (cnd.mapinfo_no && cnd.mapinfo_no !== map.mapinfo_no) {
+      return false;
+    }
+
+    // スプレから受け取ったmap.noは必ず単一の整数Nであるので, Number([N]) -> Nとできる.
+    if (cnd.no && !cnd.no.includes(Number(map.no))) {
+      return false;
+    }
+
+    return true;
   }
 
   function matches_attacker(
     cnd: event_bonuses.condition,
     attacker: attacker_t
-  ) {
+  ): boolean {
     if (cnd.ship_id && !cnd.ship_id.includes(attacker.id)) {
       return false;
     }
@@ -43,36 +69,33 @@ namespace event_bonuses {
     return true;
   }
 
-  function matches_map(cnd: event_bonuses.condition, map: event_bonuses.map) {
-    const matches_map_impl = function (
-      cnd_map: event_bonuses.map,
-      map: event_bonuses.map
-    ) {
-      if (cnd_map.maparea_id && cnd_map.maparea_id != map.maparea_id) {
+  function matches_equipment(
+    cnd: event_bonuses.condition,
+    equipments: slot_t
+  ): boolean {
+    if (cnd.equipment) {
+      if (!equipments.items.some((e) => cnd.equipment?.id?.includes(e.id))) {
         return false;
       }
+    }
 
-      if (cnd_map.mapinfo_no && cnd_map.mapinfo_no != map.mapinfo_no) {
-        return false;
-      }
+    return true;
+  }
 
-      // スプレから受け取ったmap.noは必ず単一の整数Nであるので, Number([N]) -> Nとできる.
-      if (cnd_map.no && !cnd_map.no.includes(Number(map.no))) {
-        return false;
-      }
-
-      return true;
-    };
-
-    if (cnd.map && !cnd.map.some((e) => matches_map_impl(e, map))) {
+  function matches_abyss_ship(
+    cnd: event_bonuses.condition,
+    abyss_id: number
+  ): boolean {
+    if (cnd.abyss_ship_id && !cnd.abyss_ship_id.includes(abyss_id)) {
       return false;
     }
 
     return true;
   }
 
-  function matches_abyss_ship(cnd: event_bonuses.condition, abyss_id: number) {
-    if (cnd.abyss_ship_id && !cnd.abyss_ship_id.includes(abyss_id)) {
+  // 装甲破砕
+  function matches_xal01(cnd: event_bonuses.condition, xal01: 0 | 1): boolean {
+    if (cnd.xal01 && cnd.xal01 !== xal01) {
       return false;
     }
 
@@ -82,7 +105,7 @@ namespace event_bonuses {
   function matches_phase(
     cnd: event_bonuses.condition,
     phase: event_bonuses.phase
-  ) {
+  ): boolean {
     if (cnd.phase && !cnd.phase.includes(phase)) {
       return false;
     }
@@ -100,6 +123,7 @@ namespace event_bonuses {
  * @param { number[] } map_map_info_id #5-3-Pの3. 全ての行.
  * @param { number[] } map_no #5-3-PのPに対応する16. 全ての行.
  * @param { number[] } abyss_id 防御艦の艦船ID. 全ての行.
+ * @param { 0 | 1 } xal01 装甲破砕. 全ての行.
  * @param { ("航空戦" | "砲撃戦" | "雷撃戦" | "夜戦")[] } phase 戦闘フェーズ. 全ての行.
  * @param { number } rows 入力行数.
  * @returns { number[] } 期間限定海域の第8種乗算補正値.
@@ -114,6 +138,7 @@ function calc_event_bonus_a8(
   map_map_info_id: number[][],
   map_no: number[][],
   abyss_id: number[][],
+  xal01: 0 | 1,
   phase: event_bonuses.phase,
   rows: number
 ): number[] {
@@ -128,6 +153,7 @@ function calc_event_bonus_a8(
       (map_map_info_id[i] as number[])[0] as number,
       (map_no[i] as number[])[0] as number,
       (abyss_id[i] as number[])[0] as number,
+      xal01,
       phase[i] as event_bonuses.phase
     );
     result.push(bonus);
@@ -144,6 +170,7 @@ function calc_event_bonus_a8_per_row(
   map_map_info_id: number,
   map_no: number,
   abyss_id: number,
+  xal01: 0 | 1,
   phase: event_bonuses.phase
 ): number {
   const attacker = build_attacker(attacker_id, slotitem_ids, slotitem_levels);
@@ -156,7 +183,7 @@ function calc_event_bonus_a8_per_row(
   };
 
   return event_bonuses
-    .extract_event_bonus(attacker, map, abyss_id, phase)
+    .extract_event_bonus(attacker, map, abyss_id, xal01, phase)
     .reduce((acc, bonus) => {
       if (!bonus.a8) return acc;
       return bonus.a8.sup

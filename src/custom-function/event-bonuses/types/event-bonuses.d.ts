@@ -22,6 +22,11 @@ namespace event_bonuses {
   // FIXME
   export type phase = "航空戦" | "砲撃戦" | "雷撃戦" | "夜戦";
 
+  // TODO: 艦載機の組み合わせ
+  export type equipment = {
+    readonly id?: number[];
+  };
+
   export type condition = {
     readonly ship_id?: number[];
     readonly yomi?: string[]; // `original_id: number[]`のほうがよい?
@@ -29,13 +34,11 @@ namespace event_bonuses {
     readonly ctype?: number[];
     readonly nationality?: number[];
 
-    //   readonly equipment: any; 保留
-
-    readonly map?: map[];
+    readonly equipment?: equipment;
 
     readonly abyss_ship_id?: number[];
 
-    readonly xal01?: boolean; // 装甲破砕
+    readonly xal01?: number; // 装甲破砕: APIに合わせて, 0 | 1 | opt
 
     readonly phase?: phase[];
   };
@@ -44,4 +47,9 @@ namespace event_bonuses {
     readonly mod: modifier;
     readonly cnd: condition;
   };
-} // namespace event_bonuses
+
+  export type map_bonuses = {
+    readonly map: map;
+    readonly bonuses: bonus[];
+  };
+} // namespace event_bonuses_v2
