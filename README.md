@@ -1,142 +1,133 @@
 # ダメージ検証用スクリプト
 
-ダメージ検証用スプレのためのGoogle Apps Script (GAS)
+[ダメージ検証用スプレ](https://drive.google.com/drive/folders/1J_tBagjdXl81d0onHqKf--H5hf0TGHnw?usp=sharing)のためのGoogle Apps Script (GAS)
+
+- [ダメージ検証用スクリプト](#ダメージ検証用スクリプト)
+  - [開発](#開発)
+    - [コーディング規約](#コーディング規約)
+    - [トラブルシューティング](#トラブルシューティング)
+    - [参考](#参考)
 
 ## 開発
 
-### Node.jsをインストールする
+1. Node.jsをインストール
 
-```shell
-sudo apt install nodejs
-```
+    ```shell
+    sudo apt install nodejs
+    ```
 
-### このディレクトリに移動する
+2. このディレクトリに移動
 
-```shell
-cd /PATH/TO/THIS-DIRECTORY
-```
+    ```shell
+    cd /PATH/TO/script-for-damage-formula-verification
+    ```
 
-### パッケージを取得する
+3. TypeScriptをインストール
 
-```shell
-npm init --yes
-npm install --save-dev @types/google-apps-script
-npm install --save-dev @types/google-apps-script-oauth2
-```
+    ```shell
+    npm install --save-dev typescript @types/node
+    ```
 
-### TypeScriptをインストールする
+4. パッケージを取得
 
-```shell
-npm install --save-dev typescript @types/node
-```
+    ```shell
+    npm init --yes
+    npm install --save-dev @types/google-apps-script
+    npm install --save-dev @types/google-apps-script-oauth2
+    ```
 
-`tsconfig.json`の生成が必要であれば次も実行してください.
+5. claspをインストール
 
-```shell
-npx tsc --init
-```
+    ```shell
+    sudo npm install -g @google/clasp
+    ```
 
-### claspをインストールする
+6. google アカウントでログイン
 
-```shell
-sudo npm install -g @google/clasp
-```
+    ```shell
+    clasp login
+    ```
 
-### Googleアカウントでログインする
+7. `.clasp.json`にpush先のGoogle spreadsheetとGASのIDを記述
 
-```shell
-clasp login
-```
+    ```json
+    {
+        // https://docs.google.com/spreadsheets/d/***/edit
+        "parentId": [
+            "***"
+        ],
+        "rootDir": "/PATH/TO/script-for-damage-formula-verification",
+        // https://script.google.com/u/0/home/projects/***/edit
+        "scriptId": "***"
+    }
+    ```
 
-### GASプロジェクトを新規作成する
+8. コーディング
 
-既に作成している場合は, この操作は不要です.
+    [コーディング規約](#コーディング規約)
 
-```shell
-clasp create
-```
+9. 静的検査をして合格すればpush
 
-`sheet`を選択する.
+    ```shell
+    npx tsc && clasp push
+    ```
 
-### コードを書く
+    `./dist`ディレクトリへのJavaScriptファイルの生成は不要なため, `./tsconfig.json`にて`"noEmit": true`を指定します.
 
-```ts
-"use strict";
-```
+### コーディング規約
 
-#### spreadsheetから受け取る引数の型
+艦これAPIに合わせてsnake_caseを用います.
 
-題は以下のように振る舞います.
-
-- 単一の空白は, `string`
-- 単一の文字列は, `string`
-- 単一の数値は, `number`
-- 配列は, その中身にかかわらず`string`を要素型とする配列
-
-`number[]`や`number[][]`で受け取らないようにしてください.
-
-#### `@customfunction`と`@OnlyCurrentDoc`
-
-suctom functionすなわちspreadsheetの数式エディタにて呼び出す関数に`@customfunction`JsDocタグを付加すると, 数式エディタで補完等が有効になります.  
+エントリーポイントとなるカスタム関数はグローバルに定義し, `@customfunction`をコメントします.
+実行するスクリプトが他のdocumentにアクセスしないとき, `@OnlyCurrentDoc`をコメントすると権限の承認が簡略されます.  
 
 ```ts
+namespace ns {
+    /**
+     * プログラミング開始の挨拶, その実装詳細.
+     * @returns { string } "Hello, World!"
+     */
+    export function hello_world(): string {
+    return "Hello, World!";
+    }
+}
+
 /**
- * @customfunction ここに関数の簡単な説明
+ * プログラミング開始の挨拶
+ * @returns { string } "Hello, World!"
+ * @customfunction エントリーポイント
  */
-function foo(args: any): any { /* do something */ }
-```
-
-実行するスクリプトが他のdocumentにアクセスしないとき, `@OnlyCurrentDoc`JsDocタグを付加すると権限の承認が簡略されます.  
-
-```ts
-/**
- * @OnlyCurrentDoc
- */
-function bar(args: any): any { /* do something */ }
-```
-
-#### 命名規則
-
-`api_mst_*`のために, snake_caseを用います.
-
-### 静的検査をする
-
-TypeScriptの恩恵を受けるために, 静的検査をします.
-ここでエラーがあっても`clasp push`は通りますが, エラーを解決してください.
-distディレクトリ等への, Javascriptファイルの生成は不要です.
-
-```shell
-npx tsc
-```
-
-### デプロイメントをする
-
-プロジェクトディレクトリ直下に`.clasp.json`が必要です. 適切に書き換えてください.
-
-```json
-{
-    "rootDir": "/PATH/TO/script-for-damage-formula-verification",
-    "scriptId": "GOOGLE APPS SCRIPT ID",
-    "parentId":["PARENT SPREADSHEET ID"]
+function hello_world(): string {
+    return ns.hello_world();
 }
 ```
 
-次を実行すると, `src/`以下の`*.ts`ファイルを`*.js`に変換し, これを`.clasp.json`の`"scriptId"`プロパティに紐づいたプロジェクトにアップロードします.
+spreadsheetから受け取る引数の型は, 以下のように振る舞います:
 
-```shell
-clasp push
+```ts
+// 単一の値の場合
+// 数値のみまたは文字列のみを受け取るならば, それぞれnumber, stringに限定して型注釈できます.
+// エラー値はstring, NaNはnumberとなります.
+type value = number | string;
+
+// 配列の場合
+// 1次元配列でも2次元配列でも, 2次元配列で受け取ります.
+// 要素型は上記valueに倣います.
+type values = value[][];
 ```
 
-[!NOTE]
-> `Error retrieving access token: Error: invalid_grant`
+### トラブルシューティング
 
-このようなエラーが出た場合は, 次を試行してください.
+- 型が分からない
+  `JSON.stringify`による確認を検討してください.
 
-```shell
-clasp login
-```
+- `Error retrieving access token: Error: invalid_grant`
 
-`npx tsc && clasp push`をすると, 静的検査を行いこれに合格したとき続けてアップロードします.
+    次を試行してください.
+
+    ```shell
+    clasp login
+    ```
 
 ### 参考
 
