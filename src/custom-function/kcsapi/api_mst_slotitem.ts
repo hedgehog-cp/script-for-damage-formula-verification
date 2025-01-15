@@ -6,7 +6,7 @@
 
 // tscが長すぎるjsonを解析しきれないため, 深海棲艦の部分を除いて定義した.
 /** 装備マスタ */
-const api_mst_slotitem: api_mst_slotitem_t[] = [
+const api_mst_slotitem: api_mst_slotitem[] = [
   {
     api_atap: 0,
     api_bakk: 0,

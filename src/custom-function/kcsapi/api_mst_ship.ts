@@ -6,7 +6,7 @@
 
 // tscが長すぎるjsonを解析しきれないため, 深海棲艦の部分を除いて定義した.
 /** 艦船マスタ */
-const api_mst_ship: api_mst_ship_t[] = [
+const api_mst_ship: api_mst_ship[] = [
   {
     api_afterbull: 100,
     api_afterfuel: 100,

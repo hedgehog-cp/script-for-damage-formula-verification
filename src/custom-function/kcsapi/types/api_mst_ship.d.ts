@@ -1,5 +1,5 @@
 // https://json2ts.vercel.app/
-type api_mst_ship_t = {
+type api_mst_ship = {
   readonly api_afterbull?: number;
   readonly api_afterfuel?: number;
   readonly api_afterlv?: number;

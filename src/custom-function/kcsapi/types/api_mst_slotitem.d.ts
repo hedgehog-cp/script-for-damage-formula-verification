@@ -1,5 +1,5 @@
 // https://json2ts.vercel.app/
-type api_mst_slotitem_t = {
+type api_mst_slotitem = {
   readonly api_atap: number;
   readonly api_bakk: number;
   readonly api_baku: number;

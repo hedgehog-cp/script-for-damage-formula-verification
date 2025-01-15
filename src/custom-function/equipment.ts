@@ -1,15 +1,15 @@
-class slotitem_t {
-  public constructor(master: api_mst_slotitem_t | undefined, level: number) {
+class equipment {
+  public constructor(master: api_mst_slotitem | undefined, level: number) {
     this.master = master;
-    this.id = master?.api_id || slotitem_t.null_value;
-    this.type2 = master?.api_type[2] || slotitem_t.null_value;
+    this.id = master?.api_id || equipment.null_value;
+    this.type2 = master?.api_type[2] || equipment.null_value;
     this.level = level;
   }
 
   public static readonly null_value: number = NaN;
 
   /** 装備マスタ */
-  public readonly master: api_mst_slotitem_t | undefined;
+  public readonly master: api_mst_slotitem | undefined;
   /** 有効な装備IDまたはnull_id */
   public readonly id: number;
   /** api_type[2] */

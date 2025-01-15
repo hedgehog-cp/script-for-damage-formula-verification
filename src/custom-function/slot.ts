@@ -1,5 +1,5 @@
-class slot_t {
-  public constructor(slotitems: slotitem_t[]) {
+class slot {
+  public constructor(slotitems: equipment[]) {
     this.items = slotitems;
   }
 
@@ -45,5 +45,5 @@ class slot_t {
   }
 
   /** このスロットが保持する0個以上の装備. 配列サイズは常に6であるはず. */
-  public readonly items: slotitem_t[];
+  public readonly items: equipment[];
 }

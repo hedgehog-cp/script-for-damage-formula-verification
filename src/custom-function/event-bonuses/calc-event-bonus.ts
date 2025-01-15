@@ -1,6 +1,6 @@
 namespace event_bonuses {
   export function extract_event_bonus(
-    attacker: attacker_t,
+    attacker: ship,
     map: event_bonuses.map,
     abyss_id: number,
     xal01: 0 | 1,
@@ -44,7 +44,7 @@ namespace event_bonuses {
 
   function matches_attacker(
     cnd: event_bonuses.condition,
-    attacker: attacker_t
+    attacker: ship
   ): boolean {
     if (cnd.ship_id && !cnd.ship_id.includes(attacker.id)) {
       return false;
@@ -71,7 +71,7 @@ namespace event_bonuses {
 
   function matches_equipment(
     cnd: event_bonuses.condition,
-    equipments: slot_t
+    equipments: slot
   ): boolean {
     if (cnd.equipment) {
       if (!equipments.items.some((e) => cnd.equipment?.id?.includes(e.id))) {

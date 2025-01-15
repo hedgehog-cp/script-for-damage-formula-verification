@@ -107,21 +107,21 @@ function build_attacker(
   attacker_id: number,
   slotitem_ids: number[],
   slotitem_levels: number[]
-): attacker_t | undefined {
+): ship | undefined {
   const id = Number(attacker_id);
   const mst_ship = to_master(id, api_mst_ship);
   if (mst_ship === undefined) return undefined;
 
   const slot_size = Math.min(slotitem_ids.length, slotitem_levels.length);
-  const slotitems: slotitem_t[] = [];
+  const slotitems: equipment[] = [];
   for (let i = 0; i < slot_size; i++) {
     const id = slotitem_ids[i] as number;
     const mst_slotitem = to_master(id, api_mst_slotitem);
     const level = slotitem_levels[i] as number;
-    slotitems.push(new slotitem_t(mst_slotitem, level));
+    slotitems.push(new equipment(mst_slotitem, level));
   }
 
-  return new attacker_t(mst_ship, new slot_t(slotitems));
+  return new ship(mst_ship, new slot(slotitems));
 }
 
 /**
@@ -155,10 +155,10 @@ function aggregate_bonuses(bonuses_object: bonus_t[]): bonus_t {
 
 /**
  * ある攻撃艦のための装備ボーナスオブジェクトを計算し, これを返します.
- * @param { attacker_t } attacker 攻撃艦
+ * @param { ship } attacker 攻撃艦
  * @returns { bonus_t[] } 装備ボーナスオブジェクト
  */
-function get_bonuses_object(attacker: attacker_t): bonus_t[] {
+function get_bonuses_object(attacker: ship): bonus_t[] {
   if (!attacker.slot.has_item()) return [];
 
   const result: bonus_t[] = [];
