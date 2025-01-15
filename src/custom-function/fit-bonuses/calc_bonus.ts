@@ -1,3 +1,229 @@
+namespace fit_bonuses_ns {
+  /// @brief 装備種3(カテゴリ)で指定された装備を搭載しているかを検証する.
+  /// もとより指定されていなければ, 無条件として通過する.
+  function matches_categories(categories: number[], attacker: ship): boolean {
+    if (categories.length > 0) {
+      const has_fit_equipment: boolean = attacker.slot.items.some(
+        (e) => e.master && categories.includes(e.type2)
+      );
+      if (!has_fit_equipment) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /// @brief 装備IDで指定された装備を搭載しているかを検証する.
+  /// もとより指定されていなければ, 無条件として通過する.
+  function matches_ids(ids: number[], attacker: ship): boolean {
+    if (ids.length > 0) {
+      const has_fit_equipment: boolean = attacker.slot.items.some(
+        (e) => e.master && ids.includes(e.id)
+      );
+      if (!has_fit_equipment) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /// @brief 指定された装備を搭載しているかを検証する.
+  /// 搭載していないならば, ボーナス付与なし. 次のボーナスへ.
+  /// もとより指定されていなければ, 無条件として通過する.
+  function matches_bonus_equipment(
+    bonus_equipment: bonus_equipment,
+    attacker: ship
+  ): boolean {
+    const { types, ids, bonuses } = bonus_equipment;
+    return (
+      (!types || matches_categories(types, attacker)) &&
+      (!ids || matches_ids(ids, attacker))
+    );
+  }
+
+  /// @brief 指定された艦娘の条件を満たしているかを検証する.
+  /// もとより指定されていなければ, 無条件として通過する.
+  function matches_ship(bonus_data: bonus_data, attacker: ship): boolean {
+    if (bonus_data.shipS && !bonus_data.shipS.includes(attacker.original_id)) {
+      return false;
+    }
+
+    if (
+      bonus_data.shipClass &&
+      !bonus_data.shipClass.includes(attacker.ctype)
+    ) {
+      return false;
+    }
+
+    if (
+      bonus_data.shipNationality &&
+      !bonus_data.shipNationality.includes(attacker.nationality)
+    ) {
+      return false;
+    }
+
+    if (bonus_data.shipType && !bonus_data.shipType.includes(attacker.stype)) {
+      return false;
+    }
+
+    if (bonus_data.shipX && !bonus_data.shipX.includes(attacker.id)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /// @brief 指定された装備の条件を満たしているかを検証する.
+  /// もとより指定されていなければ, 無条件として通過する.
+  function matches_required_id(
+    bonus_data: bonus_data,
+    attacker: ship
+  ): boolean {
+    if (bonus_data.requires) {
+      const count: number = attacker.slot.items.reduce((acc, e) => {
+        if (!e.master) return acc;
+        return bonus_data.requires?.includes(attacker.id) &&
+          (!bonus_data.requiresLevel || e.level >= bonus_data.requiresLevel)
+          ? acc + 1
+          : acc;
+      }, 0);
+      if (count < (bonus_data.requiresNum || 1)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /// @brief 指定された装備の条件を満たしているかを検証する.
+  /// もとより指定されていなければ, 無条件として通過する.
+  function matches_required_category(
+    bonus_data: bonus_data,
+    attacker: ship
+  ): boolean {
+    if (bonus_data.requiresType) {
+      const count: number = attacker.slot.items.reduce((acc, e) => {
+        if (!e.master) return acc;
+        return bonus_data.requiresType?.includes(e.type2) ? acc + 1 : acc;
+      }, 0);
+    }
+
+    return true;
+  }
+
+  /// @brief 指定された条件を満たしているかを検証する.
+  /// 満たしていないならば, ボーナス付与なし. 次のボーナスへ.
+  /// もとより指定されていなければ, 無条件として通過する.
+  function matches_bonus_data(bonus_data: bonus_data, attacker: ship): boolean {
+    return (
+      matches_ship(bonus_data, attacker) &&
+      matches_required_id(bonus_data, attacker) &&
+      matches_required_category(bonus_data, attacker)
+    );
+  }
+
+  /// @brief 指定された条件を満たす装備の搭載数を数え上げる.
+  function count_fit_equipment(
+    attacker: ship,
+    bonus_equipment: bonus_equipment,
+    bonus_data: bonus_data
+  ): number {
+    const { types, ids, bonuses } = bonus_equipment;
+    return attacker.slot.items.reduce((acc, e) => {
+      if (!e.master) return acc;
+
+      if (ids && !ids.includes(e.id)) {
+        return acc;
+      }
+
+      if (types && !types.includes(e.type2)) {
+        return acc;
+      }
+
+      if (bonus_data.level && e.level < bonus_data.level) {
+        return acc;
+      }
+
+      return acc + 1;
+    }, 0);
+  }
+
+  /// @brief 装備ボーナスを求める.
+  export function calc_bonus(
+    attacker: ship,
+    bonus_list: bonus_equipment[]
+  ): bonus_value {
+    // 型をbonus_valueとするとreadonlyのため, 複合代入演算ができない.
+    // 現状では, 雷装と対潜だけが必要.
+    let total /*: bonus_value */ = {
+      //   houg: 0,
+      //   tyku: 0,
+      //   kaih: 0,
+      //   souk: 0,
+      //   houm: 0,
+      tais: 0,
+      raig: 0,
+      //   saku: 0,
+      //   leng: 0,
+      //   baku: 0,
+    };
+
+    // 現状, 対空電探は, 対潜ボーナス, 雷装ボーナスそれぞれへの影響が無いのでコメントアウト.
+    // const has_anti_air_radar = attacker.slot.count_anti_air_radar();
+    const has_accuracy_radar = attacker.slot.count_accuracy_radar();
+    const has_surface_radar = attacker.slot.count_surface_radar();
+
+    for (const bonus_equipment of bonus_list) {
+      if (!matches_bonus_equipment(bonus_equipment, attacker)) continue;
+
+      for (const bonus_data of bonus_equipment.bonuses) {
+        if (!matches_bonus_data(bonus_data, attacker)) continue;
+
+        if (bonus_data.bonus) {
+          const count: number = count_fit_equipment(
+            attacker,
+            bonus_equipment,
+            bonus_data
+          );
+
+          if (bonus_data.num && count < bonus_data.num) {
+            // 算入しない
+          } else if (
+            bonus_data.num ||
+            bonus_data.requires ||
+            bonus_data.requiresType
+          ) {
+            total.tais += bonus_data.bonus.tais || 0;
+            total.raig += bonus_data.bonus.raig || 0;
+          } else {
+            total.tais += (bonus_data.bonus.tais || 0) * count;
+            total.raig += (bonus_data.bonus.raig || 0) * count;
+          }
+        }
+
+        // if (bonus_data.bonusAR && has_anti_air_radar) {
+        //   total.tais += bonus_data.bonusAccR.tais || 0;
+        //   total.raig += bonus_data.bonusAccR.raig || 0;
+        // }
+
+        if (bonus_data.bonusAccR && has_accuracy_radar) {
+          // total.tais += bonus_data.bonusAccR.tais || 0;
+          total.raig += bonus_data.bonusAccR.raig || 0;
+        }
+
+        if (bonus_data.bonusSR && has_surface_radar) {
+          total.tais += bonus_data.bonusSR.tais || 0;
+          total.raig += bonus_data.bonusSR.raig || 0;
+        }
+      }
+    }
+
+    return total;
+  }
+}
+
 /**
  * 装備ボーナス.対潜を計算し, これを返します.
  * @param { strign[] } attacker_ids 攻撃艦の艦船IDの配列
@@ -58,15 +284,24 @@ function calc_raig_bonus(
  * @param { number[][] } slotitem_ids 攻撃艦が装備している装備の装備IDすべての配列.
  * @param { number[][] } slotitem_levels 攻撃艦が装備している装備の改修値すべての配列.
  * @param { number } rows データ件数. 引数のそれぞれの配列サイズ.
- * @returns { bonus_t[] } 装備ボーナス
+ * @returns { fit_bonuses_ns.bonus_value[] } 装備ボーナス
  */
 function calc_bonus(
   attacker_ids: number[],
   slotitem_ids: number[][],
   slotitem_levels: number[][],
   rows: number
-): bonus_t[] {
-  const result: bonus_t[] = [];
+): fit_bonuses_ns.bonus_value[] {
+  const result: fit_bonuses_ns.bonus_value[] = [];
+  const zero: fit_bonuses_ns.bonus_value = {
+    houg: 0,
+    tyku: 0,
+    kaih: 0,
+    souk: 0,
+    houm: 0,
+    tais: 0,
+    raig: 0,
+  } as const;
 
   for (let i = 0; i < rows; i++) {
     const attacker = build_attacker(
@@ -75,21 +310,14 @@ function calc_bonus(
       slotitem_levels[i] as number[]
     );
 
-    if (attacker === undefined) {
-      const zero = {
-        houg: 0,
-        tyku: 0,
-        kaih: 0,
-        souk: 0,
-        houm: 0,
-        tais: 0,
-        raig: 0,
-      } as const;
-      result.push(zero);
-    } else {
-      const bonuses_object = get_bonuses_object(attacker);
-      const bonus = aggregate_bonuses(bonuses_object);
+    if (attacker) {
+      const bonus: fit_bonuses_ns.bonus_value = fit_bonuses_ns.calc_bonus(
+        attacker,
+        fit_bonuses_ns.fit_bonuses
+      );
       result.push(bonus);
+    } else {
+      result.push(zero);
     }
   }
 
@@ -122,171 +350,6 @@ function build_attacker(
   }
 
   return new ship(mst_ship, new slot(slotitems));
-}
-
-/**
- * 装備ボーナスオブジェクトを集計し, 装備ボーナスを返します.
- * @param { bonus_t[] } bonuses_object 装備ボーナスオブジェクト
- * @returns { bonus_t } 装備ボーナス
- */
-function aggregate_bonuses(bonuses_object: bonus_t[]): bonus_t {
-  const bonus = {
-    houg: 0,
-    tyku: 0,
-    kaih: 0,
-    souk: 0,
-    houm: 0,
-    tais: 0,
-    raig: 0,
-  };
-
-  for (const e of bonuses_object) {
-    bonus.houg += e.houg || 0;
-    bonus.tyku += e.tyku || 0;
-    bonus.kaih += e.kaih || 0;
-    bonus.souk += e.souk || 0;
-    bonus.houm += e.houm || 0;
-    bonus.tais += e.tais || 0;
-    bonus.raig += e.raig || 0;
-  }
-
-  return bonus;
-}
-
-/**
- * ある攻撃艦のための装備ボーナスオブジェクトを計算し, これを返します.
- * @param { ship } attacker 攻撃艦
- * @returns { bonus_t[] } 装備ボーナスオブジェクト
- */
-function get_bonuses_object(attacker: ship): bonus_t[] {
-  if (!attacker.slot.has_item()) return [];
-
-  const result: bonus_t[] = [];
-
-  const anti_air_radar = attacker.slot.count_anti_air_radar();
-  const surface_radar = attacker.slot.count_surface_radar();
-  const accuracy_radar = attacker.slot.count_accuracy_radar();
-
-  for (const { types, ids, bonuses } of fit_bonuses) {
-    if (!(types || ids) && bonuses) continue;
-
-    const fit_slotitems = (function () {
-      if (types) {
-        return attacker.slot.items.filter((v) => types.includes(v.type2));
-      }
-      if (ids) {
-        return attacker.slot.items.filter((v) => ids.includes(v.id));
-      }
-    })();
-    if (!(fit_slotitems && fit_slotitems.length)) continue;
-
-    for (const bonus of bonuses) {
-      // 未改造判定
-      if (bonus.shipS && !bonus.shipS.includes(attacker.original_id)) {
-        continue;
-      }
-
-      // 艦型判定
-      if (bonus.shipClass && !bonus.shipClass.includes(attacker.ctype)) {
-        continue;
-      }
-
-      // 国籍判定
-      if (
-        bonus.shipNationality &&
-        !bonus.shipNationality.includes(attacker.nationality)
-      ) {
-        continue;
-      }
-
-      // 艦種判定
-      if (bonus.shipType && !bonus.shipType.includes(attacker.stype)) {
-        continue;
-      }
-
-      // 艦船ID判定
-      if (bonus.shipX && !bonus.shipX.includes(attacker.id)) {
-        continue;
-      }
-
-      // 対空電探判定
-      if (bonus.bonusAR && !anti_air_radar) {
-        continue;
-      }
-
-      // 水上電探判定
-      if (bonus.bonusSR && !surface_radar) {
-        continue;
-      }
-
-      // 命中電探判定
-      if (bonus.bonusAccR && !accuracy_radar) {
-        continue;
-      }
-
-      if (bonus.requires) {
-        const required_slotitems = bonus.requires;
-        const required_level = bonus.requiresLevel || 0;
-        const target_slotitems = attacker.slot.items.filter((v) =>
-          required_slotitems.includes(v.id)
-        );
-
-        if (bonus.num && target_slotitems.length < bonus.num) {
-          continue;
-        }
-        if (
-          required_level &&
-          !target_slotitems.some((v) => v.level >= required_level)
-        ) {
-          continue;
-        }
-        if (!target_slotitems.length) {
-          continue;
-        }
-        // ?
-        // if () { continue; }
-      }
-
-      if (
-        bonus.requiresType &&
-        !attacker.slot.items.some((v) => bonus.requiresType?.includes(v.type2))
-      ) {
-        continue;
-      }
-
-      // なぜかundefinedの可能性が無くならないので, 適当に変数に置く.
-      const min_level = bonus.level;
-      if (min_level) {
-        const level_fits = fit_slotitems.filter((v) => v.level >= min_level);
-
-        if (!level_fits.length) {
-          continue;
-        }
-
-        if (bonus.num && level_fits.length < bonus.num) {
-          continue;
-        }
-
-        if (!bonus.num) {
-          for (let i = 0; i < level_fits.length; i++) {
-            if (bonus.bonus) result.push(bonus.bonus);
-          }
-        } else {
-          if (bonus.bonus) result.push(bonus.bonus);
-        }
-      } else if (bonus.num && fit_slotitems.length < bonus.num) {
-        continue;
-      } else if (!bonus.num) {
-        for (let i = 0; i < fit_slotitems.length; i++) {
-          if (bonus.bonus) result.push(bonus.bonus);
-        }
-      } else {
-        if (bonus.bonus) result.push(bonus.bonus);
-      }
-    } // for bonus of bonuses
-  } // for bonuses of fit_bonuses
-
-  return result;
 }
 
 /**
