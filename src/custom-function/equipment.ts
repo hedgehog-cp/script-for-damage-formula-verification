@@ -1,19 +1,13 @@
-class equipment {
-  public constructor(master: api_mst_slotitem | undefined, level: number) {
-    this.master = master;
-    this.id = master?.api_id || equipment.null_value;
-    this.type2 = master?.api_type[2] || equipment.null_value;
-    this.level = level;
+namespace kcv {
+  export class equipment {
+    public constructor(mst: api_mst_slotitem, level: number) {
+      this.mst = mst;
+      this.level = level;
+    }
+
+    /** 装備マスタ */
+    public readonly mst: api_mst_slotitem;
+    /** 有効な装備改修値または-1. 有効でない改修値のとき, parse時に-1に変換される. */
+    public readonly level: number;
   }
-
-  public static readonly null_value: number = NaN;
-
-  /** 装備マスタ */
-  public readonly master: api_mst_slotitem | undefined;
-  /** 有効な装備IDまたはnull_id */
-  public readonly id: number;
-  /** api_type[2] */
-  public readonly type2: number;
-  /** 有効な装備改修値または-1. 有効でない改修値のとき, parse時に-1に変換される. */
-  public readonly level: number;
 }

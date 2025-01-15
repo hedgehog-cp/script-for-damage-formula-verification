@@ -9,7 +9,10 @@ type has_api_id = {
  * @param mst 艦船マスタ | 装備マスタ
  * @returns {T | undefined} IDに対応するマスタ | undefined
  */
-function to_master<T extends has_api_id>(id: number, mst: T[]): T | undefined {
+function find_master<T extends has_api_id>(
+  id: number,
+  mst: T[]
+): T | undefined {
   // いつかid===0が実装されるかもしれないが, いまはここでundefinedにする.
   if (!id) return undefined;
 

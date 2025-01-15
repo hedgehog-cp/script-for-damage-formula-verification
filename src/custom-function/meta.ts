@@ -51,7 +51,7 @@ function is_radar(mst: api_mst_slotitem): boolean {
  * @returns { boolean } 対空電探であればtrueを返します.
  */
 function is_anti_air_radar(mst: api_mst_slotitem): boolean {
-  return is_radar(mst) && mst.api_tyku > 1;
+  return is_radar(mst) && mst.api_tyku >= 2;
 }
 
 /**
@@ -60,7 +60,7 @@ function is_anti_air_radar(mst: api_mst_slotitem): boolean {
  * @returns { boolean } 水上電探であればtrueを返します.
  */
 function is_surface_radar(mst: api_mst_slotitem): boolean {
-  return is_radar(mst) && mst.api_saku > 4;
+  return is_radar(mst) && mst.api_saku >= 5;
 }
 
 /**
@@ -70,4 +70,12 @@ function is_surface_radar(mst: api_mst_slotitem): boolean {
  */
 function is_accuracy_radar(mst: api_mst_slotitem): boolean {
   return is_radar(mst) && mst.api_houm >= 8;
+}
+
+function to_original_id(mst: api_mst_ship): number | undefined {
+  // 線形探索したくない
+  return api_mst_ship
+    .filter((v) => v.api_yomi === mst.api_yomi)
+    .filter((v) => v.api_sort_id % 10 === 1)
+    .at(0)?.api_id;
 }

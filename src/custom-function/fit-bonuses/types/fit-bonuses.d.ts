@@ -1,6 +1,6 @@
 // https://json2ts.vercel.app/
 
-namespace fit_bonuses_ns {
+namespace fit_bonuses {
   type bonus_equipment = {
     readonly types?: number[];
     readonly bonuses: bonus_data[];

@@ -1,4 +1,4 @@
-namespace fit_bonuses_ns {
+namespace fit_bonuses {
   // 権限の設定に困難があるため, とりあえずのところはJSONを手動更新する.
   /** 装備ボーナスオブジェクト */
   // const fit_bonuses = fetchJson<fit_bonuses_t[]>(

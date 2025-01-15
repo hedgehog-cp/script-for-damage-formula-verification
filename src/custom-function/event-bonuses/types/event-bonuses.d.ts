@@ -36,7 +36,7 @@ namespace event_bonuses {
 
     readonly equipment?: equipment;
 
-    readonly abyss_ship_id?: number[];
+    readonly abyssal_ship_id?: number[];
 
     readonly xal01?: number; // 装甲破砕: APIに合わせて, 0 | 1 | opt
 

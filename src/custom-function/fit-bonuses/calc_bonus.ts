@@ -1,10 +1,13 @@
-namespace fit_bonuses_ns {
+namespace fit_bonuses {
   /// @brief 装備種3(カテゴリ)で指定された装備を搭載しているかを検証する.
   /// もとより指定されていなければ, 無条件として通過する.
-  function matches_categories(categories: number[], attacker: ship): boolean {
+  function matches_categories(
+    categories: number[],
+    attacker: kcv.ship
+  ): boolean {
     if (categories.length > 0) {
-      const has_fit_equipment: boolean = attacker.slot.items.some(
-        (e) => e.master && categories.includes(e.type2)
+      const has_fit_equipment: boolean = attacker.equipments.some(
+        (e) => e && categories.includes(e.mst.api_type[2] as number)
       );
       if (!has_fit_equipment) {
         return false;
@@ -16,10 +19,10 @@ namespace fit_bonuses_ns {
 
   /// @brief 装備IDで指定された装備を搭載しているかを検証する.
   /// もとより指定されていなければ, 無条件として通過する.
-  function matches_ids(ids: number[], attacker: ship): boolean {
+  function matches_ids(ids: number[], attacker: kcv.ship): boolean {
     if (ids.length > 0) {
-      const has_fit_equipment: boolean = attacker.slot.items.some(
-        (e) => e.master && ids.includes(e.id)
+      const has_fit_equipment: boolean = attacker.equipments.some(
+        (e) => e && ids.includes(e.mst.api_id)
       );
       if (!has_fit_equipment) {
         return false;
@@ -34,7 +37,7 @@ namespace fit_bonuses_ns {
   /// もとより指定されていなければ, 無条件として通過する.
   function matches_bonus_equipment(
     bonus_equipment: bonus_equipment,
-    attacker: ship
+    attacker: kcv.ship
   ): boolean {
     const { types, ids, bonuses } = bonus_equipment;
     return (
@@ -45,14 +48,14 @@ namespace fit_bonuses_ns {
 
   /// @brief 指定された艦娘の条件を満たしているかを検証する.
   /// もとより指定されていなければ, 無条件として通過する.
-  function matches_ship(bonus_data: bonus_data, attacker: ship): boolean {
+  function matches_ship(bonus_data: bonus_data, attacker: kcv.ship): boolean {
     if (bonus_data.shipS && !bonus_data.shipS.includes(attacker.original_id)) {
       return false;
     }
 
     if (
       bonus_data.shipClass &&
-      !bonus_data.shipClass.includes(attacker.ctype)
+      !bonus_data.shipClass.includes(attacker.mst.api_ctype)
     ) {
       return false;
     }
@@ -64,11 +67,14 @@ namespace fit_bonuses_ns {
       return false;
     }
 
-    if (bonus_data.shipType && !bonus_data.shipType.includes(attacker.stype)) {
+    if (
+      bonus_data.shipType &&
+      !bonus_data.shipType.includes(attacker.mst.api_stype)
+    ) {
       return false;
     }
 
-    if (bonus_data.shipX && !bonus_data.shipX.includes(attacker.id)) {
+    if (bonus_data.shipX && !bonus_data.shipX.includes(attacker.mst.api_id)) {
       return false;
     }
 
@@ -79,12 +85,12 @@ namespace fit_bonuses_ns {
   /// もとより指定されていなければ, 無条件として通過する.
   function matches_required_id(
     bonus_data: bonus_data,
-    attacker: ship
+    attacker: kcv.ship
   ): boolean {
     if (bonus_data.requires) {
-      const count: number = attacker.slot.items.reduce((acc, e) => {
-        if (!e.master) return acc;
-        return bonus_data.requires?.includes(attacker.id) &&
+      const count: number = attacker.equipments.reduce((acc, e) => {
+        if (!e) return acc;
+        return bonus_data.requires?.includes(attacker.mst.api_id) &&
           (!bonus_data.requiresLevel || e.level >= bonus_data.requiresLevel)
           ? acc + 1
           : acc;
@@ -101,12 +107,14 @@ namespace fit_bonuses_ns {
   /// もとより指定されていなければ, 無条件として通過する.
   function matches_required_category(
     bonus_data: bonus_data,
-    attacker: ship
+    attacker: kcv.ship
   ): boolean {
     if (bonus_data.requiresType) {
-      const count: number = attacker.slot.items.reduce((acc, e) => {
-        if (!e.master) return acc;
-        return bonus_data.requiresType?.includes(e.type2) ? acc + 1 : acc;
+      const count: number = attacker.equipments.reduce((acc, e) => {
+        if (!e) return acc;
+        return bonus_data.requiresType?.includes(e.mst.api_type[2] as number)
+          ? acc + 1
+          : acc;
       }, 0);
     }
 
@@ -116,7 +124,10 @@ namespace fit_bonuses_ns {
   /// @brief 指定された条件を満たしているかを検証する.
   /// 満たしていないならば, ボーナス付与なし. 次のボーナスへ.
   /// もとより指定されていなければ, 無条件として通過する.
-  function matches_bonus_data(bonus_data: bonus_data, attacker: ship): boolean {
+  function matches_bonus_data(
+    bonus_data: bonus_data,
+    attacker: kcv.ship
+  ): boolean {
     return (
       matches_ship(bonus_data, attacker) &&
       matches_required_id(bonus_data, attacker) &&
@@ -126,19 +137,19 @@ namespace fit_bonuses_ns {
 
   /// @brief 指定された条件を満たす装備の搭載数を数え上げる.
   function count_fit_equipment(
-    attacker: ship,
+    attacker: kcv.ship,
     bonus_equipment: bonus_equipment,
     bonus_data: bonus_data
   ): number {
     const { types, ids, bonuses } = bonus_equipment;
-    return attacker.slot.items.reduce((acc, e) => {
-      if (!e.master) return acc;
+    return attacker.equipments.reduce((acc, e) => {
+      if (!e) return acc;
 
-      if (ids && !ids.includes(e.id)) {
+      if (ids && !ids.includes(e.mst.api_id)) {
         return acc;
       }
 
-      if (types && !types.includes(e.type2)) {
+      if (types && !types.includes(e.mst.api_type[2] as number)) {
         return acc;
       }
 
@@ -152,7 +163,7 @@ namespace fit_bonuses_ns {
 
   /// @brief 装備ボーナスを求める.
   export function calc_bonus(
-    attacker: ship,
+    attacker: kcv.ship,
     bonus_list: bonus_equipment[]
   ): bonus_value {
     // 型をbonus_valueとするとreadonlyのため, 複合代入演算ができない.
@@ -172,8 +183,8 @@ namespace fit_bonuses_ns {
 
     // 現状, 対空電探は, 対潜ボーナス, 雷装ボーナスそれぞれへの影響が無いのでコメントアウト.
     // const has_anti_air_radar = attacker.slot.count_anti_air_radar();
-    const has_accuracy_radar = attacker.slot.count_accuracy_radar();
-    const has_surface_radar = attacker.slot.count_surface_radar();
+    const has_accuracy_radar = 0; //attacker.equipments.count_accuracy_radar();
+    const has_surface_radar = 0; //attacker.equipments.count_surface_radar();
 
     for (const bonus_equipment of bonus_list) {
       if (!matches_bonus_equipment(bonus_equipment, attacker)) continue;
@@ -284,16 +295,16 @@ function calc_raig_bonus(
  * @param { number[][] } slotitem_ids 攻撃艦が装備している装備の装備IDすべての配列.
  * @param { number[][] } slotitem_levels 攻撃艦が装備している装備の改修値すべての配列.
  * @param { number } rows データ件数. 引数のそれぞれの配列サイズ.
- * @returns { fit_bonuses_ns.bonus_value[] } 装備ボーナス
+ * @returns { fit_bonuses.bonus_value[] } 装備ボーナス
  */
 function calc_bonus(
   attacker_ids: number[],
   slotitem_ids: number[][],
   slotitem_levels: number[][],
   rows: number
-): fit_bonuses_ns.bonus_value[] {
-  const result: fit_bonuses_ns.bonus_value[] = [];
-  const zero: fit_bonuses_ns.bonus_value = {
+): fit_bonuses.bonus_value[] {
+  const result: fit_bonuses.bonus_value[] = [];
+  const zero: fit_bonuses.bonus_value = {
     houg: 0,
     tyku: 0,
     kaih: 0,
@@ -311,9 +322,9 @@ function calc_bonus(
     );
 
     if (attacker) {
-      const bonus: fit_bonuses_ns.bonus_value = fit_bonuses_ns.calc_bonus(
+      const bonus: fit_bonuses.bonus_value = fit_bonuses.calc_bonus(
         attacker,
-        fit_bonuses_ns.fit_bonuses
+        fit_bonuses.fit_bonuses
       );
       result.push(bonus);
     } else {
@@ -335,21 +346,29 @@ function build_attacker(
   attacker_id: number,
   slotitem_ids: number[],
   slotitem_levels: number[]
-): ship | undefined {
-  const id = Number(attacker_id);
-  const mst_ship = to_master(id, api_mst_ship);
+): kcv.ship | undefined {
+  const mst_ship = find_master(attacker_id, api_mst_ship);
   if (mst_ship === undefined) return undefined;
 
+  const original_id = to_original_id(mst_ship);
+  if (!original_id) return undefined;
+
+  const nationality = to_nationality(mst_ship.api_sort_id);
+
   const slot_size = Math.min(slotitem_ids.length, slotitem_levels.length);
-  const slotitems: equipment[] = [];
+  const equipments: (kcv.equipment | undefined)[] = [];
   for (let i = 0; i < slot_size; i++) {
     const id = slotitem_ids[i] as number;
-    const mst_slotitem = to_master(id, api_mst_slotitem);
     const level = slotitem_levels[i] as number;
-    slotitems.push(new equipment(mst_slotitem, level));
+    const mst_slotitem = find_master(id, api_mst_slotitem);
+    if (mst_slotitem) {
+      equipments.push(new kcv.equipment(mst_slotitem, level));
+    } else {
+      equipments.push(undefined);
+    }
   }
 
-  return new ship(mst_ship, new slot(slotitems));
+  return new kcv.ship(mst_ship, original_id, nationality, equipments);
 }
 
 /**
