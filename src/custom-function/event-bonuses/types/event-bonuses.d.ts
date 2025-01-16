@@ -52,4 +52,4 @@ namespace event_bonuses {
     readonly map: map;
     readonly bonuses: bonus[];
   };
-} // namespace event_bonuses_v2
+} // namespace event_bonuses
