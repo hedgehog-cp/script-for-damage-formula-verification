@@ -1,6 +1,11 @@
 namespace fit_bonuses {
-  /// @brief 装備種3(カテゴリ)で指定された装備を搭載しているかを検証する.
-  /// もとより指定されていなければ, 無条件として通過する.
+  /**
+   * @brief 装備種3(カテゴリ)で指定された装備を搭載しているかを検証する.
+   * もとより指定されていなければ, 無条件として通過する.
+   * @param { number[] } categories  fit_bonuses.bonus_equipment.types
+   * @param { kcv.ship } attacker 攻撃艦
+   * @returns 条件を満たせばtrue.
+   */
   function matches_categories(
     categories: number[],
     attacker: kcv.ship
@@ -17,8 +22,13 @@ namespace fit_bonuses {
     return true;
   }
 
-  /// @brief 装備IDで指定された装備を搭載しているかを検証する.
-  /// もとより指定されていなければ, 無条件として通過する.
+  /**
+   * @brief 装備IDで指定された装備を搭載しているかを検証する.
+   * もとより指定されていなければ, 無条件として通過する.
+   * @param { number[] } ids fit_bonuses.bonus_equipment.ids
+   * @param { kcv.ship } attacker 攻撃艦
+   * @returns 条件を満たせばtrue.
+   */
   function matches_ids(ids: number[], attacker: kcv.ship): boolean {
     if (ids.length > 0) {
       const has_fit_equipment: boolean = attacker.equipments.some(
@@ -32,9 +42,14 @@ namespace fit_bonuses {
     return true;
   }
 
-  /// @brief 指定された装備を搭載しているかを検証する.
-  /// 搭載していないならば, ボーナス付与なし. 次のボーナスへ.
-  /// もとより指定されていなければ, 無条件として通過する.
+  /**
+   *  @brief 指定された装備を搭載しているかを検証する.
+   *  搭載していないならば, ボーナス付与なし. 次のボーナスへ.
+   *  もとより指定されていなければ, 無条件として通過する.
+   * @param { fit_bonuses.bonus_equipment } bonus_equipment
+   * @param { kcv.ship } attacker 攻撃艦
+   * @returns 条件を満たせばtrue.
+   */
   function matches_bonus_equipment(
     bonus_equipment: bonus_equipment,
     attacker: kcv.ship
@@ -46,9 +61,17 @@ namespace fit_bonuses {
     );
   }
 
-  /// @brief 指定された艦娘の条件を満たしているかを検証する.
-  /// もとより指定されていなければ, 無条件として通過する.
-  function matches_ship(bonus_data: bonus_data, attacker: kcv.ship): boolean {
+  /**
+   * @brief 指定された艦娘の条件を満たしているかを検証する.
+   * もとより指定されていなければ, 無条件として通過する.
+   * @param { fit_bonuses.bonus_data } bonus_data
+   * @param { kcv.ship } attacker 攻撃艦
+   * @returns 条件を満たせばtrue.
+   */
+  function matches_ship(
+    bonus_data: fit_bonuses.bonus_data,
+    attacker: kcv.ship
+  ): boolean {
     if (bonus_data.shipS && !bonus_data.shipS.includes(attacker.original_id)) {
       return false;
     }
@@ -81,10 +104,15 @@ namespace fit_bonuses {
     return true;
   }
 
-  /// @brief 指定された装備の条件を満たしているかを検証する.
-  /// もとより指定されていなければ, 無条件として通過する.
+  /**
+   * @brief 指定された装備の条件を満たしているかを検証する.
+   * もとより指定されていなければ, 無条件として通過する.
+   * @param { fit_bonuses.bonus_data } bonus_data
+   * @param { kcv.ship } attacker 攻撃艦
+   * @returns 条件を満たせばtrue.
+   */
   function matches_required_id(
-    bonus_data: bonus_data,
+    bonus_data: fit_bonuses.bonus_data,
     attacker: kcv.ship
   ): boolean {
     if (bonus_data.requires) {
@@ -103,10 +131,15 @@ namespace fit_bonuses {
     return true;
   }
 
-  /// @brief 指定された装備の条件を満たしているかを検証する.
-  /// もとより指定されていなければ, 無条件として通過する.
+  /**
+   * @brief 指定された装備の条件を満たしているかを検証する.
+   * もとより指定されていなければ, 無条件として通過する.
+   * @param { fit_bonuses.bonus_data } bonus_data
+   * @param { kcv.ship } attacker 攻撃艦
+   * @returns 条件を満たせばtrue.
+   */
   function matches_required_category(
-    bonus_data: bonus_data,
+    bonus_data: fit_bonuses.bonus_data,
     attacker: kcv.ship
   ): boolean {
     if (bonus_data.requiresType) {
@@ -116,16 +149,24 @@ namespace fit_bonuses {
           ? acc + 1
           : acc;
       }, 0);
+      if (count < (bonus_data.requiresNumType || 1)) {
+        return false;
+      }
     }
 
     return true;
   }
 
-  /// @brief 指定された条件を満たしているかを検証する.
-  /// 満たしていないならば, ボーナス付与なし. 次のボーナスへ.
-  /// もとより指定されていなければ, 無条件として通過する.
+  /**
+   * @brief 指定された条件を満たしているかを検証する.
+   * 満たしていないならば, ボーナス付与なし. 次のボーナスへ.
+   * もとより指定されていなければ, 無条件として通過する.
+   * @param { fit_bonuses.bonus_data } bonus_data
+   * @param { kcv.ship } attacker 攻撃艦
+   * @returns 条件を満たせばtrue.
+   */
   function matches_bonus_data(
-    bonus_data: bonus_data,
+    bonus_data: fit_bonuses.bonus_data,
     attacker: kcv.ship
   ): boolean {
     return (
@@ -135,11 +176,17 @@ namespace fit_bonuses {
     );
   }
 
-  /// @brief 指定された条件を満たす装備の搭載数を数え上げる.
+  /**
+   * @brief 指定された条件を満たす装備の搭載数を数え上げる.
+   * @param { kcv.ship } attacker 攻撃艦
+   * @param { fit_bonuses.bonus_equipment } bonus_equipment
+   * @param { fit_bonuses.bonus_data } bonus_data
+   * @returns 条件を装備の数.
+   */
   function count_fit_equipment(
     attacker: kcv.ship,
-    bonus_equipment: bonus_equipment,
-    bonus_data: bonus_data
+    bonus_equipment: fit_bonuses.bonus_equipment,
+    bonus_data: fit_bonuses.bonus_data
   ): number {
     const { types, ids, bonuses } = bonus_equipment;
     return attacker.equipments.reduce((acc, e) => {
@@ -161,14 +208,19 @@ namespace fit_bonuses {
     }, 0);
   }
 
-  /// @brief 装備ボーナスを求める.
+  /**
+   * @brief 装備ボーナスを求める.
+   * @param { kcv.ship } attacker 攻撃艦
+   * @param { fit_bonuses.bonus_equipment[] } bonus_list 74式ENのfit_bonuses.json
+   * @returns 攻撃艦に付与する装備ボーナス.
+   */
   export function calc_bonus(
     attacker: kcv.ship,
-    bonus_list: bonus_equipment[]
+    bonus_list: fit_bonuses.bonus_equipment[]
   ): bonus_value {
     // 型をbonus_valueとするとreadonlyのため, 複合代入演算ができない.
     // 現状では, 雷装と対潜だけが必要.
-    let total /*: bonus_value */ = {
+    const total /*: bonus_value */ = {
       //   houg: 0,
       //   tyku: 0,
       //   kaih: 0,
@@ -182,9 +234,15 @@ namespace fit_bonuses {
     };
 
     // 現状, 対空電探は, 対潜ボーナス, 雷装ボーナスそれぞれへの影響が無いのでコメントアウト.
-    // const has_anti_air_radar = attacker.slot.count_anti_air_radar();
-    const has_accuracy_radar = 0; //attacker.equipments.count_accuracy_radar();
-    const has_surface_radar = 0; //attacker.equipments.count_surface_radar();
+    // const has_anti_air_radar = attacker.equipments.some(
+    //   (e) => e && kcv.is_anti_air_radar(e.mst)
+    // );
+    const has_accuracy_radar = attacker.equipments.some(
+      (e) => e && kcv.is_accuracy_radar(e.mst)
+    );
+    const has_surface_radar = attacker.equipments.some(
+      (e) => e && kcv.is_surface_radar(e.mst)
+    );
 
     for (const bonus_equipment of bonus_list) {
       if (!matches_bonus_equipment(bonus_equipment, attacker)) continue;
