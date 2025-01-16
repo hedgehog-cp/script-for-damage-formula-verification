@@ -340,27 +340,27 @@ function calc_bonus(
  * @param { number } attacker_id 攻撃艦の艦船ID.
  * @param { number[] } slotitem_ids 攻撃艦が装備している装備の装備IDすべて.
  * @param { number[] } slotitem_levels 攻撃艦が装備している装備の改修値すべて.
- * @returns 構築した攻撃艦またはundefined
+ * @returns 構築した攻撃艦またはundefined.
  */
 function build_attacker(
   attacker_id: number,
   slotitem_ids: number[],
   slotitem_levels: number[]
 ): kcv.ship | undefined {
-  const mst_ship = find_master(attacker_id, api_mst_ship);
+  const mst_ship = kcv.find_master(attacker_id, kcv.api_mst_ship);
   if (mst_ship === undefined) return undefined;
 
-  const original_id = to_original_id(mst_ship);
+  const original_id = kcv.to_original_id(mst_ship);
   if (!original_id) return undefined;
 
-  const nationality = to_nationality(mst_ship.api_sort_id);
+  const nationality = kcv.to_nationality(mst_ship.api_sort_id);
 
   const slot_size = Math.min(slotitem_ids.length, slotitem_levels.length);
   const equipments: (kcv.equipment | undefined)[] = [];
   for (let i = 0; i < slot_size; i++) {
     const id = slotitem_ids[i] as number;
     const level = slotitem_levels[i] as number;
-    const mst_slotitem = find_master(id, api_mst_slotitem);
+    const mst_slotitem = kcv.find_master(id, kcv.api_mst_slotitem);
     if (mst_slotitem) {
       equipments.push(new kcv.equipment(mst_slotitem, level));
     } else {
