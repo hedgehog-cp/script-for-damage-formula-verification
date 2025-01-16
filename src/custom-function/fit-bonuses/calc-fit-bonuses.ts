@@ -334,17 +334,12 @@ function calc_raig_bonus(
   slotitem_levels: number[][],
   rows: number
 ): number[] {
-  const { ids, levels } = priority_filter(
-    slotitem_ids.map((arr) => arr.map((e) => Number(e))),
-    slotitem_levels.map((arr) => arr.map((e) => Number(e))),
-    rows
-  );
-
   const bonus = calc_bonus(
     attacker_ids.flat(),
     slotitem_ids,
     slotitem_levels,
-    rows
+    rows,
+    temporarily_mysterious_modify
   );
   return bonus.map((v) => v.raig || 0);
 }
@@ -361,7 +356,8 @@ function calc_bonus(
   attacker_ids: number[],
   slotitem_ids: number[][],
   slotitem_levels: number[][],
-  rows: number
+  rows: number,
+  attacker_mod_func: ((attacker: kcv.ship) => void) | null = null
 ): fit_bonuses.bonus_value[] {
   const result: fit_bonuses.bonus_value[] = [];
   const zero: fit_bonuses.bonus_value = {
@@ -381,6 +377,7 @@ function calc_bonus(
       slotitem_levels[i] as number[]
     );
     if (attacker) {
+      if (attacker_mod_func) attacker_mod_func(attacker);
       result.push(fit_bonuses.calc_bonus(attacker, fit_bonuses.fit_bonuses));
     } else {
       result.push(zero);
@@ -429,191 +426,220 @@ function build_attacker(
 /**
  * @see https://x.com/Divinity_123/status/1854937456086311200
  * @see https://docs.google.com/spreadsheets/d/1pXwnNTIYkMYXwJqYA1-J2TQNyr_MF9eSdOr8r_guZY4/edit?gid=787357589#gid=787357589
- *
- * @param { number[][] } slotitem_ids 攻撃艦が装備している装備の装備IDすべての配列.
- * @param { number[][] } slotitem_levels 攻撃艦が装備している装備の改修値すべての配列.
- * @param { number } rows データ件数. 引数のそれぞれの配列サイズ.
- * @returns  { {ids: number[][], levels: number[][]} } 優先度でフィルタリングされた装備IDと改修値.
+ * @param { kcv.ship } attacker 攻撃艦
  */
-function priority_filter(
-  slotitem_ids: number[][],
-  slotitem_levels: number[][],
-  rows: number
-) {
-  const result_ids: number[][] = [];
-  const result_levels: number[][] = [];
+function temporarily_mysterious_modify(attacker: kcv.ship): void {
+  // 偵察機
+  {
+    const rank = [522, 523, 238, 239, 521, 118, 369, 368];
 
-  // for self-stackable
-  const get_filtered_value = function (
-    id: number,
-    ids: number[],
-    levels: number[],
-    slot_size: number
-  ) {
-    const temp_ids: number[] = [];
-    const temp_levels: number[] = [];
-    for (let i = 0; i < slot_size; i++) {
-      if (ids[i] == id) {
-        temp_ids.push(ids[i] as number);
-        temp_levels.push(levels[i] as number);
+    // 522: 零式小型水上機
+    // 523: 零式小型水上機(熟練)
+    // self-stackable
+    if (
+      attacker.equipments.some((e) => e && [522, 523].includes(e.mst.api_id))
+    ) {
+      const low_rank_equipments = rank.slice(rank.findIndex((e) => e === 238));
+      for (let e of attacker.equipments) {
+        if (e && low_rank_equipments.includes(e.mst.api_id)) e = undefined;
       }
-    }
-    return { filtered_ids: temp_ids, filtered_levels: temp_levels };
-  };
-
-  // for no self-stackable
-  const get_value_of_max_level = function (
-    id: number,
-    ids: number[],
-    levels: number[]
-  ) {
-    let max_index = -Infinity;
-    let max_level = -Infinity;
-    for (let i = 0, len = Math.min(ids.length, levels.length); i < len; i++) {
-      if (ids[i] == id && (levels[i] as number) > max_level) {
-        max_level = levels[i] as number;
-        max_index = i;
-      }
-    }
-    return { id: ids[max_index] as number, level: levels[max_index] as number };
-  };
-
-  for (let row = 0; row < rows; row++) {
-    const ids = slotitem_ids[row] as number[];
-    const levels = slotitem_levels[row] as number[];
-    const slot_size: number = Math.min(ids.length, levels.length);
-
-    // // 522: 零式小型水上機
-    // // 523: 零式小型水上機(熟練)
-    if (ids.includes(522) || ids.includes(523)) {
-      const {
-        filtered_ids: filtered_ids_522,
-        filtered_levels: filtered_levels_522,
-      } = get_filtered_value(522, ids, levels, slot_size);
-
-      const {
-        filtered_ids: filtered_ids_523,
-        filtered_levels: filtered_levels_523,
-      } = get_filtered_value(523, ids, levels, slot_size);
-
-      result_ids.push(filtered_ids_522.concat(filtered_ids_523));
-      result_levels.push(filtered_levels_522.concat(filtered_levels_523));
-      continue;
+      return;
     }
 
-    // // 238: 零式水上偵察機11型乙
-    // // 239: 零式水上偵察機11型乙(熟練)
-    if (ids.includes(238) || ids.includes(239)) {
-      if (ids.includes(238)) {
-        const { id, level } = get_value_of_max_level(238, ids, levels);
-        result_ids.push([id]);
-        result_levels.push([level]);
-        continue;
+    // 238: 零式水上偵察機11型乙
+    // 239: 零式水上偵察機11型乙(熟練)
+    // no self-stackable
+    if (
+      attacker.equipments.some((e) => e && [238, 239].includes(e.mst.api_id))
+    ) {
+      let max_level = -Infinity;
+      let index = 0;
+      for (let i = 0, len = attacker.equipments.length; i < len; i++) {
+        const e = attacker.equipments[i];
+        if (e && [238, 239].includes(e.mst.api_id) && e.level > max_level) {
+          max_level = e.level;
+          index = i;
+        }
       }
 
-      if (ids.includes(239)) {
-        const { id, level } = get_value_of_max_level(239, ids, levels);
-        result_ids.push([id]);
-        result_levels.push([level]);
-        continue;
+      const low_rank_equipments = rank.slice(rank.findIndex((e) => e === 238));
+      for (let i = 0, len = attacker.equipments.length; i < len; i++) {
+        const e = attacker.equipments[i];
+        if (e && low_rank_equipments.includes(e.mst.api_id) && i !== index) {
+          attacker.equipments[i] = undefined;
+        }
       }
+
+      return;
     }
 
-    // // 521: 紫雲(熟練)
-    if (ids.includes(521)) {
-      const { filtered_ids, filtered_levels } = get_filtered_value(
-        521,
-        ids,
-        levels,
-        slot_size
-      );
-      result_ids.push(filtered_ids);
-      result_levels.push(filtered_levels);
-      continue;
+    // 521: 紫雲(熟練)
+    // self-stackable
+    if (attacker.equipments.some((e) => e && [521].includes(e.mst.api_id))) {
+      const low_rank_equipments = rank.slice(rank.findIndex((e) => e === 118));
+      for (let e of attacker.equipments) {
+        if (e && low_rank_equipments.includes(e.mst.api_id)) e = undefined;
+      }
+
+      return;
     }
 
-    // // 118: 紫雲
-    if (ids.includes(118)) {
-      const { filtered_ids, filtered_levels } = get_filtered_value(
-        118,
-        ids,
-        levels,
-        slot_size
-      );
-      result_ids.push(filtered_ids);
-      result_levels.push(filtered_levels);
-      continue;
+    // 118: 紫雲
+    // self-stackable
+    if (attacker.equipments.some((e) => e && [118].includes(e.mst.api_id))) {
+      const low_rank_equipments = rank.slice(rank.findIndex((e) => e === 369));
+      for (let e of attacker.equipments) {
+        if (e && low_rank_equipments.includes(e.mst.api_id)) e = undefined;
+      }
+
+      return;
     }
 
-    // // 369: Swordfish Mk.III改(水上機型/熟練)
-    if (ids.includes(369)) {
-      const { id, level } = get_value_of_max_level(369, ids, levels);
-      result_ids.push([id]);
-      result_levels.push([level]);
-      continue;
+    // 369: Swordfish Mk.III改(水上機型/熟練)
+    // no self-stackable
+    if (attacker.equipments.some((e) => e && [369].includes(e.mst.api_id))) {
+      let max_level = -Infinity;
+      let index = 0;
+      for (let i = 0, len = attacker.equipments.length; i < len; i++) {
+        const e = attacker.equipments[i];
+        if (e && [369].includes(e.mst.api_id) && e.level > max_level) {
+          max_level = e.level;
+          index = i;
+        }
+      }
+
+      const low_rank_equipments = rank.slice(rank.findIndex((e) => e === 369));
+      for (let i = 0, len = attacker.equipments.length; i < len; i++) {
+        const e = attacker.equipments[i];
+        if (e && low_rank_equipments.includes(e.mst.api_id) && i !== index) {
+          attacker.equipments[i] = undefined;
+        }
+      }
+
+      return;
     }
 
-    // // 368: Swordfish Mk.III改(水上機型)
-    if (ids.includes(368)) {
-      const { id, level } = get_value_of_max_level(368, ids, levels);
-      result_ids.push([id]);
-      result_levels.push([level]);
-      continue;
-    }
+    // 368: Swordfish Mk.III改(水上機型)
+    // no self-stackable
+    if (attacker.equipments.some((e) => e && [368].includes(e.mst.api_id))) {
+      let max_level = -Infinity;
+      let index = 0;
+      for (let i = 0, len = attacker.equipments.length; i < len; i++) {
+        const e = attacker.equipments[i];
+        if (e && [368].includes(e.mst.api_id) && e.level > max_level) {
+          max_level = e.level;
+          index = i;
+        }
+      }
 
-    // // 372: 天山一二型甲
-    if (ids.includes(372)) {
-      const { id, level } = get_value_of_max_level(372, ids, levels);
-      result_ids.push([id]);
-      result_levels.push([level]);
-      continue;
-    }
+      const low_rank_equipments = rank.slice(rank.findIndex((e) => e === 368));
+      for (let i = 0, len = attacker.equipments.length; i < len; i++) {
+        const e = attacker.equipments[i];
+        if (e && low_rank_equipments.includes(e.mst.api_id) && i !== index) {
+          attacker.equipments[i] = undefined;
+        }
+      }
 
-    // // 373: 天山一二型甲改(空六号電探改装備機)
-    if (ids.includes(373)) {
-      const { id, level } = get_value_of_max_level(373, ids, levels);
-      result_ids.push([id]);
-      result_levels.push([level]);
-      continue;
+      return;
     }
-
-    // // 374: 天山一二型甲改(熟練/空六号電探改装備機)
-    if (ids.includes(374)) {
-      const { id, level } = get_value_of_max_level(374, ids, levels);
-      result_ids.push([id]);
-      result_levels.push([level]);
-      continue;
-    }
-
-    // // 425: Barracuda Mk.III
-    if (ids.includes(425)) {
-      const { filtered_ids, filtered_levels } = get_filtered_value(
-        425,
-        ids,
-        levels,
-        slot_size
-      );
-      result_ids.push(filtered_ids);
-      result_levels.push(filtered_levels);
-      continue;
-    }
-
-    // // 424: Barracuda Mk.II
-    if (ids.includes(424)) {
-      const { filtered_ids, filtered_levels } = get_filtered_value(
-        424,
-        ids,
-        levels,
-        slot_size
-      );
-      result_ids.push(filtered_ids);
-      result_levels.push(filtered_levels);
-      continue;
-    }
-
-    result_ids.push(ids);
-    result_levels.push(levels);
   }
 
-  return { ids: result_ids, levels: result_levels };
+  // 艦攻
+  {
+    const rank = [372, 373, 374, 425, 424];
+
+    // 372: 天山一二型甲
+    // no self-stackable
+    if (attacker.equipments.some((e) => e && [372].includes(e.mst.api_id))) {
+      let max_level = -Infinity;
+      let index = 0;
+      for (let i = 0, len = attacker.equipments.length; i < len; i++) {
+        const e = attacker.equipments[i];
+        if (e && [372].includes(e.mst.api_id) && e.level > max_level) {
+          max_level = e.level;
+          index = i;
+        }
+      }
+
+      const low_rank_equipments = rank.slice(rank.findIndex((e) => e === 372));
+      for (let i = 0, len = attacker.equipments.length; i < len; i++) {
+        const e = attacker.equipments[i];
+        if (e && low_rank_equipments.includes(e.mst.api_id) && i !== index) {
+          attacker.equipments[i] = undefined;
+        }
+      }
+
+      return;
+    }
+
+    // 373: 天山一二型甲改(空六号電探改装備機)
+    // no self-stackable
+    if (attacker.equipments.some((e) => e && [373].includes(e.mst.api_id))) {
+      let max_level = -Infinity;
+      let index = 0;
+      for (let i = 0, len = attacker.equipments.length; i < len; i++) {
+        const e = attacker.equipments[i];
+        if (e && [373].includes(e.mst.api_id) && e.level > max_level) {
+          max_level = e.level;
+          index = i;
+        }
+      }
+
+      const low_rank_equipments = rank.slice(rank.findIndex((e) => e === 373));
+      for (let i = 0, len = attacker.equipments.length; i < len; i++) {
+        const e = attacker.equipments[i];
+        if (e && low_rank_equipments.includes(e.mst.api_id) && i !== index) {
+          attacker.equipments[i] = undefined;
+        }
+      }
+
+      return;
+    }
+
+    // 374: 天山一二型甲改(熟練/空六号電探改装備機)
+    // no self-stackable
+    if (attacker.equipments.some((e) => e && [374].includes(e.mst.api_id))) {
+      let max_level = -Infinity;
+      let index = 0;
+      for (let i = 0, len = attacker.equipments.length; i < len; i++) {
+        const e = attacker.equipments[i];
+        if (e && [374].includes(e.mst.api_id) && e.level > max_level) {
+          max_level = e.level;
+          index = i;
+        }
+      }
+
+      const low_rank_equipments = rank.slice(rank.findIndex((e) => e === 374));
+      for (let i = 0, len = attacker.equipments.length; i < len; i++) {
+        const e = attacker.equipments[i];
+        if (e && low_rank_equipments.includes(e.mst.api_id) && i !== index) {
+          attacker.equipments[i] = undefined;
+        }
+      }
+
+      return;
+    }
+
+    // 425: Barracuda Mk.III
+    // self-stackable
+    if (attacker.equipments.some((e) => e && [425].includes(e.mst.api_id))) {
+      const low_rank_equipments = rank.slice(rank.findIndex((e) => e === 424));
+      for (let e of attacker.equipments) {
+        if (e && low_rank_equipments.includes(e.mst.api_id)) e = undefined;
+      }
+
+      return;
+    }
+
+    // 424: Barracuda Mk.II
+    // self-stackable
+    if (attacker.equipments.some((e) => e && [425].includes(e.mst.api_id))) {
+      //   const low_rank_equipments = rank.slice(rank.findIndex((e) => e === 0));
+      //   for (let e of attacker.equipments) {
+      //     if (e && low_rank_equipments.includes(e.mst.api_id)) e = undefined;
+      //   }
+
+      return;
+    }
+  }
 }
