@@ -295,41 +295,43 @@ namespace fit_bonuses {
 
 /**
  * 装備ボーナス.対潜を計算し, これを返します.
- * @param { strign[] } attacker_ids 攻撃艦の艦船IDの配列
- * @param { strign[][] } slotitem_ids 攻撃艦が装備している装備の装備IDすべての配列.
- * @param { strign[][] } slotitem_levels 攻撃艦が装備している装備の改修値すべての配列.
- * @param { number } rows データ件数. 引数のそれぞれの配列サイズ.
+ * @param { number[] } attacker_ids 攻撃艦の艦船ID. 全ての行.
+ * @param { number[][] } slotitem_ids 攻撃艦が装備している装備の装備ID. 全ての行.
+ * @param { number[][] } slotitem_levels 攻撃艦が装備している装備の改修値. 全ての行.
+ * @param { number } rows 入力行数.
  * @returns { number[] } 装備ボーナス.対潜
- * @customfunction
+ * @customfunction エントリーポイント. 1次元配列を受け取ると2次元配列になる.
+ * 行数を取得しているため, インデックスアクセスでundefinedとならない.
  */
 function calc_tais_bonus(
-  attacker_ids: string[],
-  slotitem_ids: string[][],
-  slotitem_levels: string[][],
+  attacker_ids: number[][],
+  slotitem_ids: number[][],
+  slotitem_levels: number[][],
   rows: number
 ): number[] {
   const bonus = calc_bonus(
-    attacker_ids.map((e) => Number(e)),
-    slotitem_ids.map((arr) => arr.map((e) => Number(e))),
-    slotitem_levels.map((arr) => arr.map((e) => Number(e))),
+    attacker_ids.flat(),
+    slotitem_ids,
+    slotitem_levels,
     rows
   );
   return bonus.map((v) => v.tais || 0);
 }
 
 /**
- * 装備ボーナス雷撃を計算し, これを返します.
- * @param { strign[] } attacker_ids 攻撃艦の艦船IDの配列
- * @param { strign[][] } slotitem_ids 攻撃艦が装備している装備の装備IDすべての配列.
- * @param { strign[][] } slotitem_levels 攻撃艦が装備している装備の改修値すべての配列.
- * @param { number } rows データ件数. 引数のそれぞれの配列サイズ.
- * @returns { number[] } 装備ボーナス雷撃
- * @customfunction
+ * 装備ボーナス.雷装を計算し, これを返します.
+ * @param { number[] } attacker_ids 攻撃艦の艦船ID. 全ての行.
+ * @param { number[][] } slotitem_ids 攻撃艦が装備している装備の装備ID. 全ての行.
+ * @param { number[][] } slotitem_levels 攻撃艦が装備している装備の改修値. 全ての行.
+ * @param { number } rows 入力行数.
+ * @returns { number[] } 装備ボーナス.雷装
+ * @customfunction エントリーポイント. 1次元配列を受け取ると2次元配列になる.
+ * 行数を取得しているため, インデックスアクセスでundefinedとならない.
  */
 function calc_raig_bonus(
-  attacker_ids: string[],
-  slotitem_ids: string[][],
-  slotitem_levels: string[][],
+  attacker_ids: number[][],
+  slotitem_ids: number[][],
+  slotitem_levels: number[][],
   rows: number
 ): number[] {
   const { ids, levels } = priority_filter(
@@ -339,9 +341,9 @@ function calc_raig_bonus(
   );
 
   const bonus = calc_bonus(
-    attacker_ids.map((e) => Number(e)),
-    ids,
-    levels,
+    attacker_ids.flat(),
+    slotitem_ids,
+    slotitem_levels,
     rows
   );
   return bonus.map((v) => v.raig || 0);
@@ -378,13 +380,8 @@ function calc_bonus(
       slotitem_ids[i] as number[],
       slotitem_levels[i] as number[]
     );
-
     if (attacker) {
-      const bonus: fit_bonuses.bonus_value = fit_bonuses.calc_bonus(
-        attacker,
-        fit_bonuses.fit_bonuses
-      );
-      result.push(bonus);
+      result.push(fit_bonuses.calc_bonus(attacker, fit_bonuses.fit_bonuses));
     } else {
       result.push(zero);
     }
