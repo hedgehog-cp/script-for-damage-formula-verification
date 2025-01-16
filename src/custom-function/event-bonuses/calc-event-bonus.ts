@@ -1,8 +1,8 @@
 namespace event_bonuses {
   export function extract_event_bonus(
-    attacker: attacker_t,
+    attacker: kcv.ship,
     map: event_bonuses.map,
-    abyss_id: number,
+    abyssal_ship_id: number,
     xal01: 0 | 1,
     phase: event_bonuses.phase
   ): event_bonuses.modifier[] {
@@ -13,8 +13,8 @@ namespace event_bonuses {
           .filter(
             (bonus) =>
               matches_attacker(bonus.cnd, attacker) &&
-              matches_equipment(bonus.cnd, attacker.slot) &&
-              matches_abyss_ship(bonus.cnd, abyss_id) &&
+              matches_equipment(bonus.cnd, attacker.equipments) &&
+              matches_abyss_ship(bonus.cnd, abyssal_ship_id) &&
               matches_xal01(bonus.cnd, xal01) &&
               matches_phase(bonus.cnd, phase)
           )
@@ -44,21 +44,21 @@ namespace event_bonuses {
 
   function matches_attacker(
     cnd: event_bonuses.condition,
-    attacker: attacker_t
+    attacker: kcv.ship
   ): boolean {
-    if (cnd.ship_id && !cnd.ship_id.includes(attacker.id)) {
+    if (cnd.ship_id && !cnd.ship_id.includes(attacker.mst.api_id)) {
       return false;
     }
 
-    if (cnd.yomi && !cnd.yomi.includes(attacker.master.api_yomi)) {
+    if (cnd.yomi && !cnd.yomi.includes(attacker.mst.api_yomi)) {
       return false;
     }
 
-    if (cnd.stype && !cnd.stype.includes(attacker.stype)) {
+    if (cnd.stype && !cnd.stype.includes(attacker.mst.api_stype)) {
       return false;
     }
 
-    if (cnd.ctype && !cnd.ctype.includes(attacker.ctype)) {
+    if (cnd.ctype && !cnd.ctype.includes(attacker.mst.api_ctype)) {
       return false;
     }
 
@@ -71,10 +71,12 @@ namespace event_bonuses {
 
   function matches_equipment(
     cnd: event_bonuses.condition,
-    equipments: slot_t
+    equipments: (kcv.equipment | undefined)[]
   ): boolean {
     if (cnd.equipment) {
-      if (!equipments.items.some((e) => cnd.equipment?.id?.includes(e.id))) {
+      if (
+        !equipments.some((e) => e && cnd.equipment?.id?.includes(e.mst.api_id))
+      ) {
         return false;
       }
     }
@@ -86,7 +88,7 @@ namespace event_bonuses {
     cnd: event_bonuses.condition,
     abyss_id: number
   ): boolean {
-    if (cnd.abyss_ship_id && !cnd.abyss_ship_id.includes(abyss_id)) {
+    if (cnd.abyssal_ship_id && !cnd.abyssal_ship_id.includes(abyss_id)) {
       return false;
     }
 
