@@ -227,7 +227,7 @@ namespace fit_bonuses {
       ],
     },
     {
-      ids: [3, 122, 533],
+      ids: [3, 122, 533, 553],
       bonuses: [
         {
           shipClass: [54],
@@ -251,6 +251,46 @@ namespace fit_bonuses {
             houg: 1,
             tyku: 1,
             kaih: 1,
+          },
+        },
+      ],
+    },
+    {
+      ids: [533, 553],
+      bonuses: [
+        {
+          shipX: [426, 986],
+          bonus: {
+            houg: 1,
+            tyku: 1,
+          },
+        },
+        {
+          shipX: [426, 986],
+          level: 4,
+          bonus: {
+            tyku: 1,
+          },
+        },
+        {
+          shipX: [426, 986],
+          level: 6,
+          bonus: {
+            kaih: 1,
+          },
+        },
+        {
+          shipX: [426, 986],
+          level: 8,
+          bonus: {
+            houm: 1,
+          },
+        },
+        {
+          shipX: [426, 986],
+          level: 10,
+          bonus: {
+            houg: 1,
           },
         },
       ],
@@ -564,6 +604,50 @@ namespace fit_bonuses {
             houg: 1,
           },
         },
+        {
+          shipX: [986],
+          bonus: {
+            tyku: 1,
+            kaih: 1,
+          },
+        },
+        {
+          shipX: [986],
+          requires: [533, 553],
+          num: 1,
+          bonus: {
+            tyku: 1,
+            houm: 1,
+          },
+        },
+        {
+          shipX: [986],
+          level: 7,
+          bonus: {
+            houg: 1,
+          },
+        },
+        {
+          shipX: [986],
+          level: 8,
+          bonus: {
+            tyku: 1,
+          },
+        },
+        {
+          shipX: [986],
+          level: 9,
+          bonus: {
+            kaih: 1,
+          },
+        },
+        {
+          shipX: [986],
+          level: 10,
+          bonus: {
+            houm: 1,
+          },
+        },
       ],
     },
     {
@@ -581,6 +665,13 @@ namespace fit_bonuses {
           level: 10,
           bonus: {
             houg: 1,
+          },
+        },
+        {
+          shipX: [986],
+          bonus: {
+            tyku: 1,
+            kaih: 1,
           },
         },
       ],
@@ -627,6 +718,13 @@ namespace fit_bonuses {
           level: 10,
           bonus: {
             houg: 1,
+          },
+        },
+        {
+          shipX: [986],
+          bonus: {
+            tyku: 1,
+            kaih: 1,
           },
         },
       ],
@@ -1713,28 +1811,28 @@ namespace fit_bonuses {
           },
         },
         {
-          shipX: [981],
+          shipX: [426, 981, 986],
           level: 7,
           bonus: {
             tyku: 1,
           },
         },
         {
-          shipX: [981],
+          shipX: [426, 981, 986],
           level: 8,
           bonus: {
             kaih: 1,
           },
         },
         {
-          shipX: [981],
+          shipX: [426, 981, 986],
           level: 9,
           bonus: {
             houm: 1,
           },
         },
         {
-          shipX: [981],
+          shipX: [426, 981, 986],
           level: 10,
           bonus: {
             houg: 1,
@@ -2846,11 +2944,61 @@ namespace fit_bonuses {
       ids: [268],
       bonuses: [
         {
-          shipS: [100, 101],
+          shipS: [100, 101, 511],
           num: 1,
           bonus: {
             souk: 2,
             kaih: 7,
+          },
+        },
+        {
+          shipX: [200, 290],
+          num: 1,
+          bonus: {
+            souk: 2,
+            kaih: 7,
+          },
+        },
+        {
+          level: 7,
+          bonus: {
+            kaih: 1,
+          },
+        },
+        {
+          level: 8,
+          bonus: {
+            houm: 1,
+          },
+        },
+        {
+          level: 9,
+          bonus: {
+            houg: 1,
+          },
+        },
+        {
+          level: 10,
+          bonus: {
+            kaih: 1,
+          },
+        },
+        {
+          shipS: [35, 63, 64, 100, 101, 114, 511, 516, 574],
+          level: 7,
+          bonus: {
+            kaih: 2,
+            tais: 1,
+            houm: 1,
+          },
+        },
+        {
+          requires: [402],
+          level: 7,
+          bonus: {
+            kaih: 4,
+            tais: 2,
+            houm: 1,
           },
         },
       ],
@@ -2972,7 +3120,7 @@ namespace fit_bonuses {
         {
           shipX: [
             147, 195, 326, 407, 419, 420, 426, 437, 627, 647, 665, 666, 903,
-            908, 959,
+            908, 959, 986,
           ],
           num: 1,
           bonus: {
@@ -2983,7 +3131,7 @@ namespace fit_bonuses {
         {
           shipX: [
             147, 195, 326, 407, 419, 420, 426, 437, 627, 647, 665, 666, 903,
-            908, 959,
+            908, 959, 986,
           ],
           num: 2,
           bonus: {
@@ -2994,7 +3142,7 @@ namespace fit_bonuses {
         {
           shipX: [
             147, 195, 326, 407, 419, 420, 426, 437, 627, 647, 665, 666, 903,
-            908, 959,
+            908, 959, 986,
           ],
           level: 10,
           num: 1,
@@ -3006,7 +3154,7 @@ namespace fit_bonuses {
         {
           shipX: [
             147, 195, 326, 407, 419, 420, 426, 437, 627, 647, 665, 666, 903,
-            908, 959,
+            908, 959, 986,
           ],
           level: 10,
           num: 2,
@@ -3017,7 +3165,7 @@ namespace fit_bonuses {
         {
           shipX: [
             147, 195, 326, 407, 419, 420, 426, 437, 627, 647, 665, 666, 903,
-            908, 959,
+            908, 959, 986,
           ],
           level: 10,
           num: 3,
@@ -11619,6 +11767,27 @@ namespace fit_bonuses {
             kaih: 1,
           },
         },
+        {
+          shipX: [986],
+          bonus: {
+            tyku: 1,
+            kaih: 1,
+          },
+        },
+        {
+          shipX: [986],
+          bonus: {
+            houg: 1,
+            kaih: 1,
+          },
+        },
+        {
+          shipX: [986],
+          level: 8,
+          bonus: {
+            houm: 1,
+          },
+        },
       ],
     },
     {
@@ -14197,6 +14366,154 @@ namespace fit_bonuses {
             houg: 1,
             kaih: 1,
             houm: 1,
+          },
+        },
+      ],
+    },
+    {
+      ids: [553],
+      bonuses: [
+        {
+          shipClass: [54],
+          level: 2,
+          bonus: {
+            tyku: 1,
+          },
+        },
+        {
+          shipClass: [54],
+          level: 4,
+          bonus: {
+            houg: 1,
+          },
+        },
+        {
+          shipClass: [54],
+          level: 6,
+          bonus: {
+            houm: 1,
+          },
+        },
+        {
+          shipClass: [54],
+          level: 8,
+          bonus: {
+            tyku: 1,
+          },
+        },
+        {
+          shipClass: [54],
+          level: 10,
+          bonus: {
+            kaih: 1,
+          },
+        },
+        {
+          shipX: [981],
+          level: 2,
+          bonus: {
+            tyku: 1,
+          },
+        },
+        {
+          shipX: [981],
+          level: 4,
+          bonus: {
+            houg: 1,
+          },
+        },
+        {
+          shipX: [981],
+          level: 6,
+          bonus: {
+            houm: 1,
+          },
+        },
+        {
+          shipX: [981],
+          level: 8,
+          bonus: {
+            tyku: 1,
+          },
+        },
+        {
+          shipX: [981],
+          level: 10,
+          bonus: {
+            kaih: 1,
+          },
+        },
+      ],
+    },
+    {
+      ids: [554],
+      bonuses: [
+        {
+          level: 2,
+          bonus: {
+            houg: 1,
+          },
+        },
+        {
+          level: 4,
+          bonus: {
+            houm: 1,
+          },
+        },
+        {
+          level: 6,
+          bonus: {
+            tais: 1,
+          },
+        },
+        {
+          level: 8,
+          bonus: {
+            houg: 1,
+          },
+        },
+        {
+          level: 10,
+          bonus: {
+            houm: 1,
+          },
+        },
+        {
+          shipType: [7],
+          bonus: {
+            houg: 1,
+            kaih: 1,
+            tais: 1,
+          },
+        },
+        {
+          shipX: [117, 285, 318, 555, 560, 883, 888, 894],
+          bonus: {
+            houg: 1,
+            houm: 1,
+          },
+        },
+        {
+          shipX: [894],
+          bonus: {
+            houg: 1,
+          },
+        },
+        {
+          shipClass: [27, 76],
+          bonus: {
+            kaih: 1,
+            tais: 1,
+            houm: 1,
+          },
+        },
+        {
+          requires: [402],
+          bonus: {
+            houg: 3,
+            kaih: 1,
+            tais: 3,
+            houm: 2,
           },
         },
       ],
