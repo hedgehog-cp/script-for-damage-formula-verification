@@ -3,8 +3,8 @@
 namespace fit_bonuses {
   type bonus_equipment = {
     readonly types?: number[];
-    readonly bonuses: bonus_data[];
     readonly ids?: number[];
+    readonly bonuses: bonus_data[];
   };
 
   type bonus_data = {
