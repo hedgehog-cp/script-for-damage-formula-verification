@@ -1,64 +1,73 @@
 namespace fit_bonuses {
   /**
-   * @brief 装備種3(カテゴリ)で指定された装備を搭載しているかを検証する.
-   * もとより指定されていなければ, 無条件として通過する.
-   * @param { number[] } categories  fit_bonuses.bonus_equipment.types
-   * @param { kcv.ship } attacker 攻撃艦
-   * @returns 条件を満たせばtrue.
+   * 装備ボーナスのベースとなる装備を抽出する
+   * @param { kcv.ship} attacker 攻撃艦
+   * @param { number[] } types カテゴリID
+   * @returns 装備ボーナスのベースとなる装備
    */
-  function matches_categories(
-    categories: number[],
-    attacker: kcv.ship
-  ): boolean {
-    if (categories.length > 0) {
-      const has_fit_equipment: boolean = attacker.equipments.some(
-        (e) => e && categories.includes(e.mst.api_type[2] as number)
-      );
-      if (!has_fit_equipment) {
-        return false;
+  function extract_fit_equipments_by_types(
+    attacker: kcv.ship,
+    types: number[]
+  ): kcv.equipment[] {
+    let fit_equipmets: kcv.equipment[] = [];
+
+    for (const equipmet of attacker.equipments) {
+      if (equipmet) {
+        const type: number = equipmet.mst.api_type[2] || -1;
+        if (types.includes(type)) {
+          fit_equipmets.push(equipmet);
+        }
       }
     }
 
-    return true;
+    return fit_equipmets;
   }
 
   /**
-   * @brief 装備IDで指定された装備を搭載しているかを検証する.
-   * もとより指定されていなければ, 無条件として通過する.
-   * @param { number[] } ids fit_bonuses.bonus_equipment.ids
-   * @param { kcv.ship } attacker 攻撃艦
-   * @returns 条件を満たせばtrue.
+   * 装備ボーナスのベースとなる装備を抽出する
+   * @param { kcv.ship} attacker 攻撃艦
+   * @param { number[] } ids 装備ID
+   * @returns 装備ボーナスのベースとなる装備
    */
-  function matches_ids(ids: number[], attacker: kcv.ship): boolean {
-    if (ids.length > 0) {
-      const has_fit_equipment: boolean = attacker.equipments.some(
-        (e) => e && ids.includes(e.mst.api_id)
-      );
-      if (!has_fit_equipment) {
-        return false;
+  function extract_fit_equipments_by_ids(
+    attacker: kcv.ship,
+    ids: number[]
+  ): kcv.equipment[] {
+    let fit_equipments: kcv.equipment[] = [];
+
+    for (const equipment of attacker.equipments) {
+      if (equipment) {
+        const id: number = equipment.mst.api_id;
+        if (ids.includes(id)) {
+          fit_equipments.push(equipment);
+        }
       }
     }
 
-    return true;
+    return fit_equipments;
   }
 
   /**
-   *  @brief 指定された装備を搭載しているかを検証する.
-   *  搭載していないならば, ボーナス付与なし. 次のボーナスへ.
-   *  もとより指定されていなければ, 無条件として通過する.
-   * @param { fit_bonuses.bonus_equipment } bonus_equipment
-   * @param { kcv.ship } attacker 攻撃艦
-   * @returns 条件を満たせばtrue.
+   * 装備ボーナスのベースとなる装備を抽出する
+   * @param { kcv.ship} attacker 攻撃艦
+   * @param { number[] | undefined } types カテゴリID
+   * @param { number[] | undefined } ids 装備ID
+   * @returns 装備ボーナスのベースとなる装備
    */
-  function matches_bonus_equipment(
-    bonus_equipment: bonus_equipment,
-    attacker: kcv.ship
-  ): boolean {
-    const { types, ids, bonuses } = bonus_equipment;
-    return (
-      (!types || matches_categories(types, attacker)) &&
-      (!ids || matches_ids(ids, attacker))
-    );
+  function extract_fit_equipments(
+    attacker: kcv.ship,
+    types: number[] | undefined,
+    ids: number[] | undefined
+  ): kcv.equipment[] {
+    if (types) {
+      return extract_fit_equipments_by_types(attacker, types);
+    }
+
+    if (ids) {
+      return extract_fit_equipments_by_ids(attacker, ids);
+    }
+
+    throw "not (types xor ids)";
   }
 
   /**
@@ -107,105 +116,93 @@ namespace fit_bonuses {
   /**
    * @brief 指定された装備の条件を満たしているかを検証する.
    * もとより指定されていなければ, 無条件として通過する.
-   * @param { fit_bonuses.bonus_data } bonus_data
+   * @param { fit_bonuses.bonus_data } data
    * @param { kcv.ship } attacker 攻撃艦
    * @returns 条件を満たせばtrue.
    */
   function matches_required_id(
-    bonus_data: fit_bonuses.bonus_data,
+    data: fit_bonuses.bonus_data,
     attacker: kcv.ship
   ): boolean {
-    if (bonus_data.requires) {
-      const count: number = attacker.equipments.reduce((acc, e) => {
-        if (!e) return acc;
-        return bonus_data.requires?.includes(attacker.mst.api_id) &&
-          (!bonus_data.requiresLevel || e.level >= bonus_data.requiresLevel)
-          ? acc + 1
-          : acc;
-      }, 0);
-      if (count < (bonus_data.requiresNum || 1)) {
-        return false;
+    if (!data) {
+      return true;
+    }
+
+    // count_if
+    let count = 0;
+    for (const equipmet of attacker.equipments) {
+      if (equipmet) {
+        if (!data.requiresLevel || data.requiresLevel <= equipmet.level) {
+          count++;
+        }
       }
     }
 
-    return true;
+    return count >= (data.requiresNum || 1);
   }
 
   /**
    * @brief 指定された装備の条件を満たしているかを検証する.
    * もとより指定されていなければ, 無条件として通過する.
-   * @param { fit_bonuses.bonus_data } bonus_data
+   * @param { fit_bonuses.bonus_data } data
    * @param { kcv.ship } attacker 攻撃艦
    * @returns 条件を満たせばtrue.
    */
   function matches_required_category(
-    bonus_data: fit_bonuses.bonus_data,
+    data: fit_bonuses.bonus_data,
     attacker: kcv.ship
   ): boolean {
-    if (bonus_data.requiresType) {
-      const count: number = attacker.equipments.reduce((acc, e) => {
-        if (!e) return acc;
-        return bonus_data.requiresType?.includes(e.mst.api_type[2] as number)
-          ? acc + 1
-          : acc;
-      }, 0);
-      if (count < (bonus_data.requiresNumType || 1)) {
-        return false;
+    if (!data.requiresType) {
+      return true;
+    }
+
+    // count_if
+    let count = 0;
+    for (const equipment of attacker.equipments) {
+      if (equipment) {
+        const type = equipment.mst.api_type[2] || -1;
+        if (data.requiresType.includes(type)) {
+          count++;
+        }
       }
     }
 
-    return true;
+    return count >= (data.requiresNumType || 1);
   }
 
   /**
    * @brief 指定された条件を満たしているかを検証する.
    * 満たしていないならば, ボーナス付与なし. 次のボーナスへ.
    * もとより指定されていなければ, 無条件として通過する.
-   * @param { fit_bonuses.bonus_data } bonus_data
+   * @param { fit_bonuses.bonus_data } data
    * @param { kcv.ship } attacker 攻撃艦
    * @returns 条件を満たせばtrue.
    */
-  function matches_bonus_data(
-    bonus_data: fit_bonuses.bonus_data,
+  function matches_data(
+    data: fit_bonuses.bonus_data,
     attacker: kcv.ship
   ): boolean {
     return (
-      matches_ship(bonus_data, attacker) &&
-      matches_required_id(bonus_data, attacker) &&
-      matches_required_category(bonus_data, attacker)
+      matches_ship(data, attacker) &&
+      matches_required_id(data, attacker) &&
+      matches_required_category(data, attacker)
     );
   }
 
   /**
-   * @brief 指定された条件を満たす装備の搭載数を数え上げる.
-   * @param { kcv.ship } attacker 攻撃艦
-   * @param { fit_bonuses.bonus_equipment } bonus_equipment
-   * @param { fit_bonuses.bonus_data } bonus_data
-   * @returns 条件を装備の数.
+   * 指定した改修値以上の装備の個数を数え上げ, これを返す.
+   * @param { kcv.equipment[] } fit_equipments 装備ボーナスのベースとなる装備
+   * @param { number } level 改修値
+   * @returns 指定した改修値以上の装備の個数.
    */
-  function count_fit_equipment(
-    attacker: kcv.ship,
-    bonus_equipment: fit_bonuses.bonus_equipment,
-    bonus_data: fit_bonuses.bonus_data
-  ): number {
-    const { types, ids, bonuses } = bonus_equipment;
-    return attacker.equipments.reduce((acc, e) => {
-      if (!e) return acc;
-
-      if (ids && !ids.includes(e.mst.api_id)) {
-        return acc;
+  function count_if(fit_equipments: kcv.equipment[], level: number): number {
+    let count = 0;
+    for (const equipment of fit_equipments) {
+      if (equipment.level >= level) {
+        count++;
       }
-
-      if (types && !types.includes(e.mst.api_type[2] as number)) {
-        return acc;
-      }
-
-      if (bonus_data.level && e.level < bonus_data.level) {
-        return acc;
-      }
-
-      return acc + 1;
-    }, 0);
+    }
+    return count;
   }
 
   /**
@@ -244,47 +241,46 @@ namespace fit_bonuses {
       (e) => e && kcv.is_surface_radar(e.mst)
     );
 
-    for (const bonus_equipment of bonus_list) {
-      if (!matches_bonus_equipment(bonus_equipment, attacker)) continue;
+    for (const { types, ids, bonuses } of bonus_list) {
+      const fit_equipmets = extract_fit_equipments(attacker, types, ids);
+      if (fit_equipmets.length === 0) {
+        continue;
+      }
 
-      for (const bonus_data of bonus_equipment.bonuses) {
-        if (!matches_bonus_data(bonus_data, attacker)) continue;
+      for (const data of bonuses) {
+        if (!matches_data(data, attacker)) {
+          continue;
+        }
 
-        if (bonus_data.bonus) {
-          const count: number = count_fit_equipment(
-            attacker,
-            bonus_equipment,
-            bonus_data
-          );
+        if (data.bonus) {
+          const num = data.level
+            ? count_if(fit_equipmets, data.level)
+            : fit_equipmets.length;
 
-          if (bonus_data.num && count < bonus_data.num) {
-            // 算入しない
-          } else if (
-            bonus_data.num ||
-            bonus_data.requires ||
-            bonus_data.requiresType
-          ) {
-            total.tais += bonus_data.bonus.tais || 0;
-            total.raig += bonus_data.bonus.raig || 0;
+          if (data.num) {
+            if (num >= data.num) {
+              total.raig += data.bonus.raig || 0;
+              total.tais += data.bonus.tais || 0;
+            }
           } else {
-            total.tais += (bonus_data.bonus.tais || 0) * count;
-            total.raig += (bonus_data.bonus.raig || 0) * count;
+            total.raig += (data.bonus.raig || 0) * num;
+            total.tais += (data.bonus.tais || 0) * num;
           }
         }
 
-        // if (bonus_data.bonusAR && has_anti_air_radar) {
-        //   total.tais += bonus_data.bonusAccR.tais || 0;
-        //   total.raig += bonus_data.bonusAccR.raig || 0;
+        // if (data.bonusAR && has_anti_air_radar) {
+        //   total.tais += data.bonusAccR.tais || 0;
+        //   total.raig += data.bonusAccR.raig || 0;
         // }
 
-        if (bonus_data.bonusAccR && has_accuracy_radar) {
-          // total.tais += bonus_data.bonusAccR.tais || 0;
-          total.raig += bonus_data.bonusAccR.raig || 0;
+        if (data.bonusAccR && has_accuracy_radar) {
+          // total.tais += data.bonusAccR.tais || 0;
+          total.raig += data.bonusAccR.raig || 0;
         }
 
-        if (bonus_data.bonusSR && has_surface_radar) {
-          total.tais += bonus_data.bonusSR.tais || 0;
-          total.raig += bonus_data.bonusSR.raig || 0;
+        if (data.bonusSR && has_surface_radar) {
+          total.tais += data.bonusSR.tais || 0;
+          total.raig += data.bonusSR.raig || 0;
         }
       }
     }
