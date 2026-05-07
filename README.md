@@ -25,6 +25,7 @@
 3. TypeScriptをインストール
 
     ```shell
+    sudo apt install npm
     npm install --save-dev typescript @types/node
     ```
 
@@ -56,23 +57,23 @@
         "parentId": [
             "***"
         ],
-        "rootDir": "/PATH/TO/script-for-damage-formula-verification",
+        "rootDir": "dist",
         // https://script.google.com/u/0/home/projects/***/edit
         "scriptId": "***"
     }
     ```
 
-8. コーディング
+8.  `appsscript.json`を`dist`にコピー
+
+9. コーディング
 
     [コーディング規約](#コーディング規約)
 
-9. 静的検査をして合格すればpush
+10. 静的検査をして合格すればpush
 
     ```shell
     npx tsc && clasp push
     ```
-
-    `./dist`ディレクトリへのJavaScriptファイルの生成は不要なため, `./tsconfig.json`にて`"noEmit": true`を指定します.
 
 ### コーディング規約
 
