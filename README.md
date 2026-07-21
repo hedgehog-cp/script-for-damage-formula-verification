@@ -12,8 +12,23 @@
 
 1. Node.jsをインストール
 
+    nvmを使用します.
+
     ```shell
-    sudo apt install nodejs
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+    ```
+
+    シェルを再起動します.
+
+    ```shell
+    exec $SHELL
+    ```
+
+    Node.jsをインストールします.
+
+    ```shell
+    nvm install 22
+    nvm use 22
     ```
 
 2. このディレクトリに移動
@@ -25,14 +40,13 @@
 3. TypeScriptをインストール
 
     ```shell
-    sudo apt install npm
+    npm init --yes
     npm install --save-dev typescript @types/node
     ```
 
 4. パッケージを取得
 
     ```shell
-    npm init --yes
     npm install --save-dev @types/google-apps-script
     npm install --save-dev @types/google-apps-script-oauth2
     ```
@@ -40,7 +54,7 @@
 5. claspをインストール
 
     ```shell
-    sudo npm install -g @google/clasp
+    npm install -g @google/clasp
     ```
 
 6. google アカウントでログイン
@@ -63,7 +77,7 @@
     }
     ```
 
-8.  `appsscript.json`を`dist`にコピー
+8. `appsscript.json`を`dist`にコピー
 
 9. コーディング
 
@@ -78,7 +92,6 @@
 ### コーディング規約
 
 艦これAPIに合わせてsnake_caseを用います.
-
 エントリーポイントとなるカスタム関数はグローバルに定義し, `@customfunction`をコメントします.
 実行するスクリプトが他のdocumentにアクセスしないとき, `@OnlyCurrentDoc`をコメントすると権限の承認が簡略されます.  
 
@@ -89,7 +102,7 @@ namespace ns {
      * @returns { string } "Hello, World!"
      */
     export function hello_world(): string {
-    return "Hello, World!";
+        return "Hello, World!";
     }
 }
 
@@ -120,18 +133,18 @@ type values = value[][];
 ### トラブルシューティング
 
 - 型が分からない
+
   `JSON.stringify`による確認を検討してください.
 
 - `Error retrieving access token: Error: invalid_grant`
 
-    次を試行してください.
+  次を試行してください.
 
-    ```shell
-    clasp login
-    ```
+  ```shell
+  clasp login
+  ```
 
 ### 参考
 
-- [https://github.com/google/clasp/blob/master/docs/typescript.md](https://github.com/google/clasp/blob/master/docs/typescript.md)
 - [https://developers.google.com/apps-script/guides/sheets/functions](https://developers.google.com/apps-script/guides/sheets/functions)
 - [https://developers.google.com/apps-script/guides/services/authorization](https://developers.google.com/apps-script/guides/services/authorization)
