@@ -2,7 +2,6 @@
   "compilerOptions": {
     "target": "ES2019",
     "lib": ["ES2022"],
-    "module": "none",
 
     "rootDir": "src",
     "outDir": "dist",
@@ -10,11 +9,8 @@
     "strict": true,
     "types": ["google-apps-script"],
 
-    "esModuleInterop": true,
     "skipLibCheck": true
   },
 
-  "include": [
-    "src/**/*.ts"
-  ]
+  "include": ["src/**/*.ts"]
 }

@@ -1,10 +1,10 @@
 /**
- * 関数中に定義したシート名と一致するシートの行サイズを変更します.  
+ * 関数中に定義したシート名と一致するシートの行サイズを変更します.
  * このシート名はハードコーディングしています.
  * @OnlyCurrentDoc
  */
 function adjustRowSize(): void {
-  const target = ["input", "calc", "invCalc", "attacker"];
+  const target = ["input", "calc", "inverse", "attacker"];
   const MIN = 3;
   const MAX = 10000;
   const text =
