@@ -4,7 +4,9 @@
   "description": "ダメージ検証用スプレのためのGoogle Apps Script (GAS).",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc && cp ./appsscript.json ./dist/",
+    "push": "npm run build && clasp push"
   },
   "keywords": [],
   "author": "",

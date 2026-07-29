@@ -1,6 +1,5 @@
 .vscode/*
+dist/*
 node_modules/*
-src/**/*.json
 .clasp.json
 package-lock.json
-dist/**/*.js
