@@ -14,7 +14,7 @@
  * @customfunction エントリーポイント. 1次元配列を受け取ると2次元配列になる.
  * 行数を取得しているため, インデックスアクセスでundefinedとならない.
  */
-function calc_event_bonus_a8(
+function calc_event_bonuses_a8(
   attacker_id: number[][],
   slotitem_ids: number[][],
   slotitem_levels: number[][],
