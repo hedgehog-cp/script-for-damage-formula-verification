@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc && cp ./appsscript.json ./dist/",
+    "build": "tsc && cp ./appsscript.json ./dist/ && mkdir -p ./dist/custom-menu && cp ./src/custom-menu/*.html ./dist/custom-menu/",
     "push": "npm run build && clasp push"
   },
   "keywords": [],

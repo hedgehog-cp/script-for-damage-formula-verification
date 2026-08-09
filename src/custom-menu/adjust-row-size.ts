@@ -1,37 +1,48 @@
 /**
- * 関数中に定義したシート名と一致するシートの行サイズを変更します.
- * このシート名はハードコーディングしています.
+ * 行サイズ変更画面をモーダルダイアログで表示します.
+ *
  * @OnlyCurrentDoc
  */
-function adjustRowSize(): void {
-  const target = ["input", "calc", "inverse", "attacker"];
+function showAdjustRowSizeDialog(): void {
+  const dir = "custom-menu/";
+  const fname = "adjust-row-size-index";
+  const html = HtmlService.createHtmlOutputFromFile(dir + fname)
+    .setWidth(400)
+    .setHeight(350);
+
+  SpreadsheetApp.getUi().showModalDialog(html, "行サイズを調整する");
+}
+
+/**
+ * 指定されたシートの行サイズを変更します.
+ *
+ * @param { string[] } targets 対象シート名
+ * @param { number } size 目標の行数
+ *
+ * @OnlyCurrentDoc
+ */
+function adjustRowSize(targets: string[], size: number): void {
   const MIN = 3;
   const MAX = 10000;
-  const text =
-    `シート${target.join(", ")}の行サイズを変更します.` +
-    "\n目標の行サイズを半角の自然数で入力してください." +
-    `\n${MIN}以上または${MAX}以上の場合は変更しません.`;
-  const ui = SpreadsheetApp.getUi();
 
-  // FIXME: ここでEscキーを押下するなどにより, 入力画面が破棄されるとエラーが発生する.
-  const result = ui.prompt(text, ui.ButtonSet.OK_CANCEL);
+  if (!Number.isInteger(size) || size <= MIN || size >= MAX) {
+    throw new Error(
+      `行サイズは${MIN}より大きく、${MAX}未満の自然数を指定してください.`,
+    );
+  }
 
-  if (result.getSelectedButton() === ui.Button.OK) {
-    const size = Number(result.getResponseText());
-    if (!size || size <= MIN || size >= MAX) return;
+  const sheets = SpreadsheetApp.getActiveSpreadsheet()
+    .getSheets()
+    .filter((sheet) => targets.includes(sheet.getName()));
 
-    const sheets = SpreadsheetApp.getActiveSpreadsheet()
-      .getSheets()
-      .filter((v) => target.includes(v.getName()));
-    for (const sheet of sheets) {
-      const diff = size - sheet.getMaxRows();
-      if (diff > 0) {
-        sheet.insertRowsAfter(sheet.getMaxRows(), diff);
-      } else if (diff < 0) {
-        sheet.deleteRows(size + 1, -diff);
-      } else if (diff === 0) {
-        continue;
-      }
+  for (const sheet of sheets) {
+    const currentSize = sheet.getMaxRows();
+    const diff = size - currentSize;
+
+    if (diff > 0) {
+      sheet.insertRowsAfter(currentSize, diff);
+    } else if (diff < 0) {
+      sheet.deleteRows(size + 1, -diff);
     }
   }
 }

@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+  <head>
+    <base target="_top" />
+
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+
+      .section {
+        margin-bottom: 20px;
+      }
+
+      .sheet-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .sheet-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .size-input {
+        width: 100px;
+        padding: 5px;
+        box-sizing: border-box;
+      }
+
+      .buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 20px;
+      }
+
+      button {
+        padding: 6px 16px;
+      }
+
+      .error {
+        color: #d93025;
+        margin-top: 8px;
+        min-height: 18px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="section">
+      <div>対象シート</div>
+
+      <div class="sheet-list">
+        <label class="sheet-item">
+          <input type="checkbox" name="sheet" value="input" checked />
+          input
+        </label>
+
+        <label class="sheet-item">
+          <input type="checkbox" name="sheet" value="calc" checked />
+          calc
+        </label>
+
+        <label class="sheet-item">
+          <input type="checkbox" name="sheet" value="inverse" checked />
+          inverse
+        </label>
+
+        <label class="sheet-item">
+          <input type="checkbox" name="sheet" value="data" />
+          data
+        </label>
+
+        <label class="sheet-item">
+          <input type="checkbox" name="sheet" value="attacker" checked />
+          attacker
+        </label>
+      </div>
+    </div>
+
+    <div class="section">
+      <label>
+        行サイズ
+        <input
+          id="size"
+          class="size-input"
+          type="number"
+          min="4"
+          max="9999"
+          step="1"
+          value="1000"
+        />
+      </label>
+
+      <div id="error" class="error"></div>
+    </div>
+
+    <div class="buttons">
+      <button type="button" onclick="cancel()">キャンセル</button>
+      <button type="button" onclick="submit()">実行</button>
+    </div>
+
+    <script>
+      function submit() {
+        const checked = Array.from(
+          document.querySelectorAll('input[name="sheet"]:checked'),
+        );
+
+        const target = checked.map((element) => element.value);
+
+        const size = Number(document.getElementById("size").value);
+
+        const error = document.getElementById("error");
+
+        if (target.length === 0) {
+          error.textContent = "対象シートを1つ以上選択してください.";
+          return;
+        }
+
+        if (!Number.isInteger(size) || size <= 3 || size >= 10000) {
+          error.textContent =
+            "行サイズは4以上9999以下の自然数を指定してください.";
+          return;
+        }
+
+        error.textContent = "";
+
+        google.script.run
+          .withSuccessHandler(() => {
+            google.script.host.close();
+          })
+          .withFailureHandler((error) => {
+            document.getElementById("error").textContent = error.message;
+          })
+          .adjustRowSize(target, size);
+      }
+
+      function cancel() {
+        google.script.host.close();
+      }
+    </script>
+  </body>
+</html>
