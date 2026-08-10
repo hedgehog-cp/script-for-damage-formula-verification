@@ -1,0 +1,73 @@
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/*
+  基本攻撃力セクションの4欄(最低保証火力|夜偵・表示火力・表示雷装・探索範囲)は
+  1ずつ▲▼で増減できるようにしたい、という指示のため、これらにだけ
+  上記のスピナー非表示を打ち消して復活させる。パイプライン内のa/b/cap等の
+  数値欄は密度重視のスプレッドシート風表示を維持するため対象外のまま。
+*/
+input.steppable[type="number"]::-webkit-outer-spin-button,
+input.steppable[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: auto;
+  margin: 0;
+}
+input.steppable[type="number"] {
+  -moz-appearance: number-input;
+  appearance: number-input;
+}
+
+.sheet-border {
+  border: 1px solid #a0aec0;
+}
+.sheet-input {
+  border: 1px solid #cbd5e1;
+  padding: 2px 4px;
+  font-size: 0.8125rem;
+}
+.sheet-input:focus {
+  outline: none;
+  border-color: #b4a7d6;
+  background-color: #f8faf8;
+}
+
+.drag-handle {
+  cursor: grab;
+  user-select: none;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/*
+  D&D 挿入ラインインジケーター。
+  以前はドロップ先要素自身の border-top/bottom を直接書き換えていたため、
+  要素のボックスサイズ(枠線の太さ)が変化してガタつく不具合があった。
+  そのため、要素の枠線には一切触れず、position:fixed の専用ラインを
+  都度リサイズ・再配置して重ねる方式に変更している。
+  幅・位置(left/width/top)は JS側 (showIndicatorLine) がドラッグ対象に応じて計算する。
+    - 共通行をドラッグ中            : パイプライン全幅
+    - 個別ノードをドラッグ中、個別ノード上 : そのノードの列(A or B)の幅のみ
+    - 個別ノードをドラッグ中、共通行上   : 共通行のうち自分の列側の半分のみ
+      （個別ノードは列(A/B)を越えて移動できないため）
+*/
+#dropIndicatorLine {
+  position: fixed;
+  height: 3px;
+  background-color: #6b21a8;
+  pointer-events: none;
+  z-index: 50;
+  display: none;
+}
