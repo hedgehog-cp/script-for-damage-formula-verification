@@ -10,18 +10,25 @@
  * 参照:
  *   ../docs/要約.md — 開発経緯と、AI(Gemini/Claude)による過去の誤対応の記録。
  *
+ * 依存ファイル:
+ *   search-core.js — NODE_TYPES/STAR_FORMULAS等、Web Worker(search-worker.js)と
+ *   共有する計算ロジック。index.htmlでこのファイルより先に読み込む必要がある
+ *   (詳細はsearch-core.js冒頭のコメント参照)。
+ *
  * 構成 (各セクション見出しの番号は本ファイル内の見出しコメントに対応):
  *   0.  ユーティリティ             — escapeHtml 等、他セクションから横断的に使う小関数
- *   1.  マスターデータ・状態定義   — NODE_TYPES(補正種別レジストリ)、改修計算関数候補、
- *                                    パイプラインの状態(AppState)
+ *   1.  マスターデータ・状態定義   — 種別<option>生成(nodeTypeOptionsHtml)、
+ *                                    パイプラインの状態(AppState)。NODE_TYPES/STAR_FORMULAS
+ *                                    そのものはsearch-core.jsで定義している。
  *   1b. Undo (Ctrl+Z)
- *   2.  初期化                     — ページロード時の初期描画、セクション折りたたみ
+ *   2.  初期化                     — ページロード時の初期描画、セクション折りたたみ、
+ *                                    改修計算関数候補チェックボックスの描画(renderFormulas)
  *   3.  パイプライン描画           — AppState.items を実際のDOMへ変換する
  *   4.  D&D                        — ドラッグ&ドロップによる並び替え
  *   5.  データ操作関数             — ノード/共通行の追加・更新・削除
- *   6.  探索・計算ロジック         — 反例探索の本体 (executeSearch/runSearch 等)。
- *                                    applyPipeline(x, steps) が「xにパイプラインを
- *                                    適用した結果」を返す中核関数。
+ *   6.  探索・計算ロジック         — 反例探索の本体 (executeSearch/runSearchParallel)。
+ *                                    実際の計算(applyPipeline等)はsearch-core.jsを
+ *                                    Web Worker(search-worker.js)経由で並列実行する。
  *   7.  結果表示                   — 結果テーブルの描画・ソート・TSVコピー
  *   8.  グラフ描画 (無効化)        — A(x)/B(x)の折れ線グラフ。「交戦形態補正」以外の
  *                                    共通行を新規追加した際にグラフへ正しく反映されない
@@ -53,84 +60,7 @@ function escapeHtml(str) {
 }
 
 // === 1. マスターデータ・状態定義 ===
-
-/**
- * 改修計算関数候補。
- *
- * 各候補は「改修値★を1つ受け取り、その改修値による加算量を返す関数」を表す。
- * 「改修計算関数は提示された選択肢候補のみから構成する」という制約に従い、
- * この5候補 (1.0√★, 1.5√★, 0.75√★, 0.2★, 0.3★) 以外を独自に追加してはならない。
- *
- * 以前はラベルをLaTeX ($1.0\sqrt{\star}$ 等) で持ちMathJaxで描画していたが、
- * 実際の「★」の文字がどこにも使われておらず、
- * 「MathJax等の描画処理は必要最小限に留める」という方針にも反していたため、
- * 最初からプレーンテキスト（★を含む）として保持するように変更した。
- *
- * @type {Array<{ id: string, label: string, fn: (star: number) => number }>}
- */
-const STAR_FORMULAS = [
-  { id: "f_1", label: "1.0√★", fn: (s) => 1.0 * Math.sqrt(s) },
-  { id: "f_2", label: "1.5√★", fn: (s) => 1.5 * Math.sqrt(s) },
-  { id: "f_3", label: "0.75√★", fn: (s) => 0.75 * Math.sqrt(s) },
-  { id: "f_4", label: "0.2★", fn: (s) => 0.2 * s },
-  { id: "f_5", label: "0.3★", fn: (s) => 0.3 * s },
-];
-
-/**
- * 補正ステップの種別ごとの振る舞いを1箇所に集約したレジストリ。
- *
- * 【リファクタリング】以前は種別(linear/softcap/floor)ごとの分岐が、
- * ①<select>の選択肢, ②getParamsUIのパラメータ入力欄, ③applyFnの計算式,
- * ④updateNodeType/updateCandの種別変更時デフォルト値リセット、という4箇所に
- * 分散していた。新しい種別(例: 将来の防御力用の補正)を追加する際に4箇所を
- * 漏れなく直す必要があり、修正漏れの温床になっていたため、1つのオブジェクトに
- * まとめた。新しい種別を追加する場合はこのオブジェクトに1エントリ足すだけでよい。
- *
- * - label:    <select>の選択肢に表示する文字列。
- * - defaults: 種別変更時にリセットするパラメータ (a/b や cap) を返す。
- * - paramsUI: パラメータ入力欄のHTML断片を返す (getParamsUI から呼ばれる)。
- * - apply:    値 x にこの補正を適用した結果を返す (applyFn から呼ばれる)。
- *
- * @type {Record<string, {
- *   label: string,
- *   defaults: () => object,
- *   paramsUI: (node: object, onChangeStr: string) => string,
- *   apply: (x: number, node: object) => number,
- * }>}
- */
-const NODE_TYPES = {
-  linear: {
-    label: "f(x)=x+a+b",
-    defaults: () => ({ a: 0, b: 0 }),
-    paramsUI: (node, onChangeStr) => `
-      <label class="flex items-center gap-1 text-xs whitespace-nowrap"><span class="text-gray-500">a:</span>
-        <input type="number" step="0.0001" value="${node.a !== undefined ? node.a : 1}" class="sheet-input steppable w-24 text-left font-mono rounded" onchange="${onChangeStr}, 'a', parseFloat(this.value) || 0)">
-      </label>
-      <label class="flex items-center gap-1 text-xs whitespace-nowrap"><span class="text-gray-500">b:</span>
-        <input type="number" step="0.0001" value="${node.b || 0}" class="sheet-input steppable w-24 text-left font-mono rounded" onchange="${onChangeStr}, 'b', parseFloat(this.value) || 0)">
-      </label>
-    `,
-    // 補正は乗算(ax+b)ではなく、ゲーム実装(x+=a; x+=b)に合わせた加算(x+a+b)として計算する。
-    apply: (x, node) => x + (node.a || 0) + (node.b || 0),
-  },
-  softcap: {
-    label: "f(x)=softcap(x)",
-    defaults: () => ({ cap: 220 }),
-    paramsUI: (node, onChangeStr) => `
-      <label class="flex items-center gap-1 text-xs whitespace-nowrap"><span class="text-gray-500">cap:</span>
-        <input type="number" step="1" value="${node.cap !== undefined ? node.cap : 220}" class="sheet-input steppable w-16 text-left font-mono rounded" onchange="${onChangeStr}, 'cap', parseFloat(this.value) || 0)">
-      </label>
-    `,
-    apply: (x, node) =>
-      x > (node.cap || 0) ? node.cap + Math.sqrt(x - node.cap) : x,
-  },
-  floor: {
-    label: "f(x)=floor(x)",
-    defaults: () => ({}),
-    paramsUI: () => "",
-    apply: (x) => Math.floor(x),
-  },
-};
+// NODE_TYPES/STAR_FORMULAS の定義本体は search-core.js を参照(ファイル先頭コメント参照)。
 
 /**
  * NODE_TYPES の全種別を <option> タグの並びとして返す。
@@ -163,12 +93,16 @@ function nodeTypeOptionsHtml(selectedType) {
  * sort:      results を表示する際のソート状態。配列の先頭が第1キー、以降は
  *            Shift+クリックで追加された第2キー以降のタイブレーカー
  *            (詳細は setSort() 参照)。
+ * page:      結果テーブルの現在の表示ページ(0始まり)。1ページあたりの件数は
+ *            PAGE_SIZE (renderTable()参照)。新規探索の実行やソート変更時は
+ *            0(先頭ページ)にリセットされる。
  *
  * @type {{
  *   items: Array<object>,
  *   draggedId: string|null,
  *   results: Array<object>,
- *   sort: Array<{ col: string, asc: boolean }>
+ *   sort: Array<{ col: string, asc: boolean }>,
+ *   page: number
  * }}
  */
 let AppState = {
@@ -224,6 +158,7 @@ let AppState = {
   draggedId: null,
   results: [],
   sort: [{ col: "x", asc: true }],
+  page: 0,
 };
 
 // === 1b. Undo (Ctrl+Z) ===
@@ -939,40 +874,6 @@ function isIdenticalAB() {
 }
 
 /**
- * 改修値★の全パターンを、「重複組み合わせ H(11,S)」として列挙する。
- *
- * 改修スロットは互いに区別されず(順序を持たない)、かつ同じ★値を複数スロットに
- * 重複して選べる(例: S=2 で ★5,★5 という組み合わせも有効)。そのため候補配列から
- * k個を選ぶ際、通常の組み合わせ(重複なし)ではなく「同じ要素を選び直してよい」
- * 重複組み合わせで列挙する必要がある。
- *
- * 【修正履歴】以前の実装 (getCombinations) は重複を許さない通常の組み合わせを
- * 返しており、updateEstimates() が表示する概算パターン数(重複組み合わせの件数)と
- * 実際にexecuteSearch()が生成するパターン数が一致しない不具合があった。
- * 本関数はその修正版で、返す組み合わせの総数は必ず H(11,S) = C(11+S-1, S) に一致する。
- *
- * 実装は「先頭要素をもう一度選ぶ(同じ配列に留まる)」か「先頭要素を諦めて
- * 残りの配列に進む」かの二択を再帰的に試す標準的な重複組み合わせ列挙法。
- *
- * @param {number[]} arr - 選択候補の配列 (例: [0,1,...,10] の★値)。
- * @param {number} k - 選ぶ個数 (改修スロット数 S)。
- * @returns {number[][]} 長さkの組み合わせの配列。要素数は必ず C(arr.length+k-1, k)。
- */
-function getStarCombinations(arr, k) {
-  if (k === 0) return [[]];
-  if (arr.length === 0) return [];
-  const [first, ...rest] = arr;
-  // 先頭要素を(再度)選んで残りk-1個を同じ配列からさらに選ぶ → 重複を許す枝
-  const withFirstAgain = getStarCombinations(arr, k - 1).map((c) => [
-    first,
-    ...c,
-  ]);
-  // 先頭要素はもう選ばず、残りの配列から選ぶ枝
-  const withoutFirst = getStarCombinations(rest, k);
-  return [...withFirstAgain, ...withoutFirst];
-}
-
-/**
  * 「1. 基本攻撃力」セクションの5入力欄(探索範囲N・改修スロット数S・最低保証火力・
  * 表示火力・表示雷装)を読み取って返す。updateEstimates() と executeSearch() の
  * 両方が同じ5つの getElementById(...).value 読み取りを重複して書いていたため
@@ -997,7 +898,15 @@ function readBaseInputs() {
  *
  * 計算式は
  *   総パターン数 = (N+1) × 改修関数パターン数 × Π(共通行ごとの候補関数数)
- * であり、改修関数パターン数は「選択中の改修計算関数の数」×「重複組み合わせ H(11,S)」。
+ * である。改修関数パターン数は、各スロットが独立に「改修計算関数×★値」を選べる
+ * (search-core.js の buildStarBonuses()参照)ことを踏まえ、選択中の関数数をF、
+ * スロット数をSとして重複組み合わせ H(11F, S) で計算する(「1個の選択肢」が
+ * 11通りの★値ではなく「関数×★値」の11F通りになるため)。
+ *
+ * 【修正履歴】以前はスロットごとに異なる改修計算関数を選べない実装
+ * (F × H(11,S))になっており、例えば「1.0√★の★1」と「0.2★の★3」を
+ * 混在させたパターンが探索から漏れていた。buildStarBonuses()側の修正に合わせて
+ * ここの概算式も H(11F, S) に修正している。
  */
 function updateEstimates() {
   const { N, S } = readBaseInputs();
@@ -1005,10 +914,11 @@ function updateEstimates() {
 
   let starPatterns = 1;
   if (S > 0 && fCheckedCount > 0) {
-    // H(11, S) = C(11+S-1, S) を漸化式 h *= (11+i-1)/i (i=1..S) で計算する。
+    // H(11F, S) = C(11F+S-1, S) を漸化式 h *= (11F+i-1)/i (i=1..S) で計算する。
+    const n = 11 * fCheckedCount;
     let h = 1;
-    for (let i = 1; i <= S; i++) h = (h * (11 + i - 1)) / i;
-    starPatterns = fCheckedCount * h;
+    for (let i = 1; i <= S; i++) h = (h * (n + i - 1)) / i;
+    starPatterns = h;
   } else if (S > 0 && fCheckedCount === 0) {
     starPatterns = 0;
   }
@@ -1030,110 +940,18 @@ function updateEstimates() {
 }
 
 /**
- * 1つの補正ノードを値 x に適用した結果を返す。
- * 実体は NODE_TYPES[node.type].apply() への委譲。
- *
- * @param {number} x - 適用前の値。
- * @param {?object} node - 適用するノード (type/a/b/cap を持つ)。null の場合は x をそのまま返す。
- * @returns {number} 適用後の値。
- */
-function applyFn(x, node) {
-  if (!node) return x;
-  const def = NODE_TYPES[node.type];
-  return def ? def.apply(x, node) : x;
-}
-
-/**
- * パイプライン(適用順ノード列)を値 x に順番に適用した最終結果を返す。
- * generateExecutionPaths() が返す path.pathA / path.pathB を渡す想定。
- *
- * 以前は runSearch() 内に
- *   for (const step of path.pathA) valA = applyFn(valA, step);
- * のようなループがA列・B列それぞれに書かれ重複していた。将来グラフ機能などで
- * 「与えたxに対するA(x)/B(x)を求める」処理を別の場所からも呼びたくなるため、
- * ここに切り出しておく。
- *
- * @param {number} x - パイプラインに投入する初期値。
- * @param {object[]} steps - 適用順に並んだノード列。
- * @returns {number} 全ステップ適用後の最終値。
- */
-function applyPipeline(x, steps) {
-  return steps.reduce((val, step) => applyFn(val, step), x);
-}
-
-/**
- * AppState.items から、あり得る全ての「A列の適用順パス」と「B列の適用順パス」の
- * 組み合わせを再帰的に生成する。共通行は候補関数ごとに分岐し、共通行の位置に
- * 選ばれた候補関数はA列パス・B列パスの両方の対応する位置に同一のものとして
- * 挿入・合成される。
- *
- * pathA/pathB/names はいずれも AppState.items のインデックス昇順(=パイプライン上の
- * 並び順)を維持する必要がある。executeSearch() 側で pathA/pathB を先頭から順に
- * applyFn() へ渡して合成するため、この順序を保証しないと実際に計算される
- * 合成関数の適用順序そのものが狂う。
- *
- * 【修正履歴】以前は再帰の末尾(idx+1以降=パイプライン上で自分より後ろの要素)を
- * 先に処理してから `[...s.pathA, item]` のように自分をその末尾へ追加していたため、
- * 生成される列が実際の並び順と逆転していた。linear型(加算)同士だけの区間では
- * 加算の可換性により結果が偶然一致するため気づきにくいが、softcap/floorは
- * 適用順序に依存する(可換ではない)ため、パイプラインの構成によっては
- * A(x)/B(x)の計算結果自体が誤っていた。`[item, ...s.pathA]` のように自分を
- * 先頭へ追加する形に修正し、常にインデックス昇順を維持するようにした。
- *
- * @param {number} [idx=0] - 走査中の AppState.items のインデックス (再帰用)。
- * @returns {Array<{ pathA: object[], pathB: object[], names: string[] }>}
- *   各要素が1つの「共通行の分岐パターン」を表す。pathA/pathB はその分岐での
- *   A列/B列それぞれの適用順(パイプライン上の並び順)ノード列、names は
- *   通過した共通行候補の名称列(こちらもパイプライン上の並び順)。
- */
-function generateExecutionPaths(idx = 0) {
-  if (idx >= AppState.items.length)
-    return [{ pathA: [], pathB: [], names: [] }];
-
-  const item = AppState.items[idx];
-  const sub = generateExecutionPaths(idx + 1);
-  const res = [];
-
-  if (item.kind === "node") {
-    for (const s of sub) {
-      const newA = item.col === "a" ? [item, ...s.pathA] : s.pathA;
-      const newB = item.col === "b" ? [item, ...s.pathB] : s.pathB;
-      res.push({ pathA: newA, pathB: newB, names: s.names });
-    }
-  } else if (item.kind === "common") {
-    if (item.candidates.length === 0) {
-      for (const s of sub) res.push(s);
-    } else {
-      for (const cand of item.candidates) {
-        for (const s of sub) {
-          res.push({
-            pathA: [cand, ...s.pathA],
-            pathB: [cand, ...s.pathB],
-            names: [cand.name || "-", ...s.names],
-          });
-        }
-      }
-    }
-  }
-
-  return res;
-}
-
-/**
  * 反例探索を開始する(executeSearch ボタンの onclick から呼ばれるエントリポイント)。
  *
- * 探索本体 (runSearch) は N×改修組み合わせ×共通分岐×パス数 のネストしたループで、
- * 件数によっては数百ms〜数秒かかる同期処理になる。JavaScriptは実行中は画面を
- * 再描画できないため、ボタンを押しても「計算中なのか、固まっているのか、
- * 不一致0件で終わっただけなのか」が見た目上区別できない問題があった。
- *
- * これを解決するため、ここで先にボタンを「計算中…」表示・押下不可にしてから
- * setTimeout(...,0) で1フレーム分処理を遅延させ、ブラウザに「計算中」の表示を
- * 描画する猶予を与えたうえで実際の探索 (runSearch) を実行する。
- * 完了時は runSearch 側でボタンを元に戻し、結果件数バッジと「不一致は
- * ありませんでした」メッセージを一瞬光らせる(flashSearchCompletion)ことで、
- * 結果が0件のまま変化しなくても「今回の実行はここまで完了した」ことが
- * 分かるようにしている(alert によるモーダル通知は使わない)。
+ * 探索本体 (runSearchParallel) は N×改修組み合わせ×共通分岐×パス数 のネストした
+ * ループで、件数によっては数百ms〜数秒かかる重い処理になる。ボタンを押しても
+ * 「計算中なのか、固まっているのか、不一致0件で終わっただけなのか」が見た目上
+ * 区別できない問題があったため、ここで先にボタンを「計算中…」表示・押下不可に
+ * してから setTimeout(...,0) で1フレーム分処理を遅延させ、ブラウザに「計算中」
+ * の表示を描画する猶予を与えたうえで実際の探索 (runSearchParallel) を実行する。
+ * 完了時はボタンを元に戻し、結果件数バッジと「不一致はありませんでした」
+ * メッセージを一瞬光らせる(flashSearchCompletion)ことで、結果が0件のまま
+ * 変化しなくても「今回の実行はここまで完了した」ことが分かるようにしている
+ * (alert によるモーダル通知は使わない)。
  *
  * 補正関数Aと近似関数Bの構成が完全に一致している場合は、実行してもすべて差分ゼロになる
  * (=無意味な実行である)ことを alert() で伝える(同一性警告)。
@@ -1155,85 +973,118 @@ function executeSearch() {
     if (!confirm(`パターン数が膨大(${estStr}件)です。実行しますか?`)) return;
   }
 
+  // 表示桁数は入力欄のonchangeには反応させず、実行のこのタイミングでまとめて
+  // 読み取る(displayDecimalsのJSDoc参照)。
+  const decimalsInput = parseInt(
+    document.getElementById("displayDecimals").value,
+  );
+  displayDecimals = Number.isFinite(decimalsInput) && decimalsInput >= 0
+    ? decimalsInput
+    : 5;
+
   const btn = document.getElementById("executeBtn");
   const originalLabel = btn.textContent;
   btn.disabled = true;
   btn.textContent = "計算中…";
 
   setTimeout(() => {
-    runSearch(N, S, base, fp, tp);
-    btn.disabled = false;
-    btn.textContent = originalLabel;
+    runSearchParallel(N, S, base, fp, tp)
+      .catch((err) => {
+        console.error(err);
+        alert(
+          "探索中にエラーが発生しました。詳細はブラウザの開発者ツールのコンソールを確認してください。",
+        );
+      })
+      .finally(() => {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+      });
   }, 0);
 }
 
 /**
- * 反例探索の本体(重い同期ループ)。executeSearch() から setTimeout 経由で呼ばれる。
+ * total件(反復変数i=0〜total-1)の作業を、workerCount個の区間へできるだけ
+ * 均等に分割する。
  *
- * 初期値 x = 最低保証火力|夜偵 + 表示火力 + 表示雷装 + 反復変数i + 改修効果 を
- * あらゆる i (0〜N), 改修値の組み合わせ, 共通行の分岐パターンについて求め、
- * それぞれA列パス・B列パスを適用した結果 A(x), B(x) を比較する。
- * A(x) ≠ B(x) となった組み合わせのみを AppState.results に集約し、結果テーブルを描画する。
+ * 単純に Math.ceil(total/workerCount) 幅で区切ると割り切れない場合に
+ * workerCount個より少ない区間しか生成されず、意図した並列度に届かない
+ * (例: total=51, workerCount=16 だと ceil(51/16)=4幅の区間が13個しかできず
+ * 16並列にならない)。そのため余り(remainder)分だけ先頭側の区間に1個ずつ
+ * 多く割り振り、区間数が必ず workerCount 個になるようにする。
+ *
+ * @param {number} total - 分割対象の総件数。
+ * @param {number} workerCount - 分割する区間数(=起動するWorker数)。
+ * @returns {Array<{ iStart: number, iEnd: number }>} 各区間の [iStart, iEnd](両端含む)。
+ */
+function splitIntoChunks(total, workerCount) {
+  const baseSize = Math.floor(total / workerCount);
+  const remainder = total % workerCount;
+  const chunks = [];
+  let start = 0;
+  for (let w = 0; w < workerCount; w++) {
+    const size = baseSize + (w < remainder ? 1 : 0);
+    chunks.push({ iStart: start, iEnd: start + size - 1 });
+    start += size;
+  }
+  return chunks;
+}
+
+/**
+ * 1つのWorker(search-worker.js)を起動し、担当区間(chunk)の探索結果を
+ * 計算させて受け取る。成功・失敗いずれの場合もWorkerは必ず terminate() し、
+ * リソース(スレッド)を残さないようにする。
+ *
+ * @param {{ iStart: number, iEnd: number }} chunk - このWorkerが担当するiの区間。
+ * @param {object} payload - chunk以外の共通パラメータ(items/S/base/fp/tp/formulaIds)。
+ * @returns {Promise<object[]>} この区間で見つかった反例(A(x)≠B(x))の配列。
+ */
+function runWorkerChunk(chunk, payload) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker("search-worker.js");
+    worker.onmessage = (e) => {
+      worker.terminate();
+      resolve(e.data.results);
+    };
+    worker.onerror = (err) => {
+      worker.terminate();
+      reject(err);
+    };
+    worker.postMessage({ ...payload, iStart: chunk.iStart, iEnd: chunk.iEnd });
+  });
+}
+
+/**
+ * Web Workerでの並列実行が失敗した場合のフォールバック。メインスレッド上で
+ * computeSearchResults() を1回呼び、範囲全体(0〜N)を一度に計算する。
+ * 並列化されない(=単一コアのみ使用)以外はWorker経路と同じ結果を返す
+ * (実際の計算ループはsearch-core.jsの同一関数を使うため、結果は完全に一致する)。
  *
  * @param {number} N - 探索範囲(反復変数iの上限)。
  * @param {number} S - 改修スロット数。
  * @param {number} base - 最低保証火力|夜偵。
  * @param {number} fp - 表示火力。
  * @param {number} tp - 表示雷装。
+ * @param {string[]} formulaIds - 選択中の改修計算関数のid配列。
+ * @returns {object[]} 反例(A(x)≠B(x))の配列。
  */
-function runSearch(N, S, base, fp, tp) {
-  const starBonuses = [];
-  if (S === 0) {
-    starBonuses.push({ val: 0, label: "0" });
-  } else {
-    const selectedFns = Array.from(
-      document.querySelectorAll(".formula-cb:checked"),
-    ).map((cb) => STAR_FORMULAS.find((f) => f.id === cb.value));
-    // 改修値★の全組み合わせ(重複組み合わせ H(11,S))を列挙する。updateEstimates() の概算と
-    // 同じ列挙方法(getStarCombinations)を使うことで、概算件数と実際の結果件数の整合性を保つ。
-    const combos = getStarCombinations([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], S);
+function runSearchSequential(N, S, base, fp, tp, formulaIds) {
+  const selectedFns = resolveFormulas(formulaIds);
+  return computeSearchResults(AppState.items, 0, N, S, base, fp, tp, selectedFns);
+}
 
-    for (const fnObj of selectedFns) {
-      if (!fnObj) continue;
-      for (const combo of combos) {
-        const sum = combo.reduce((acc, s) => acc + fnObj.fn(s), 0);
-        // STAR_FORMULAS のラベルは元々★を含むプレーンテキストなので、そのまま使う。
-        starBonuses.push({
-          val: sum,
-          label: `${fnObj.label} [${combo.join(",")}] (+${sum.toFixed(2)})`,
-        });
-      }
-    }
-  }
-
-  const paths = generateExecutionPaths();
-  AppState.results = [];
-
-  for (let i = 0; i <= N; i++) {
-    // x: 最低保証火力|夜偵 + 表示火力 + 表示雷装 + 反復変数i の合計(改修効果を含まない
-    // 「基本攻撃力」部分)。結果テーブルの最左列に表示する。
-    const x = base + fp + tp + i;
-
-    for (const sb of starBonuses) {
-      const initX = x + sb.val;
-
-      for (const path of paths) {
-        const valA = applyPipeline(initX, path.pathA);
-        const valB = applyPipeline(initX, path.pathB);
-
-        if (Math.abs(valA - valB) > 1e-9) {
-          AppState.results.push({
-            x: x,
-            starLabel: sb.label,
-            pathName: path.names.join(" / ") || "-",
-            resA: valA,
-            resB: valB,
-            diff: valA - valB,
-          });
-        }
-      }
-    }
-  }
+/**
+ * chunk単位の結果配列(Worker経路)または単一の結果配列(フォールバック経路)を
+ * AppState.results へ統合し、結果テーブルの描画・完了フィードバックまで行う。
+ * runSearchParallel() の両経路(Worker並列/非並列フォールバック)から共通で呼ぶ。
+ *
+ * @param {object[][]} resultsPerChunk - 各区間(またはフォールバックの単一区間)の結果配列の配列。
+ */
+function mergeResultsAndRender(resultsPerChunk) {
+  // Worker経路では各Workerが担当するiの区間内で昇順に結果を積んでいるため、
+  // 区間の順番(chunks/tasksの生成順=iの昇順)通りに連結すれば全体としても
+  // x昇順のままマージされる(初期表示のソート(下記 AppState.sort)を
+  // 待たずに見た目上も自然)。
+  AppState.results = resultsPerChunk.flat();
 
   // 探索結果セクションは常時表示だが、折りたたまれている状態で実行された場合は
   // 結果が見えないままになってしまうため展開する。
@@ -1244,12 +1095,103 @@ function runSearch(N, S, base, fp, tp) {
     `${AppState.results.length.toLocaleString()} 件`;
 
   AppState.sort = [{ col: "x", asc: true }];
+  AppState.page = 0;
+  // renderTable() はもうソートを行わない(sortResults()のJSDoc参照)ため、
+  // ここで明示的に呼ぶ。マージ直後の時点で実質x昇順になっているとはいえ、
+  // それはchunkの結合順に依存した暗黙の前提でしかないため、renderTable()に
+  // 渡す前にここで確実にソート済みの状態を保証しておく。
+  sortResults();
   renderTable();
 
   // 件数が前回と同じ(0件のまま等)でも「今回の実行が完了した」ことが視覚的に
   // 分かるよう、結果件数バッジと「不一致はありませんでした」メッセージを
   // 一瞬だけ強調表示する。
   flashSearchCompletion();
+}
+
+/**
+ * 反例探索の本体。可能な場合は複数のWeb Worker(search-worker.js)に分割して
+ * 並列実行し、Workerが使えない環境ではメインスレッドでの逐次計算にフォールバックする。
+ *
+ * 初期値 x = 最低保証火力|夜偵 + 表示火力 + 表示雷装 + 反復変数i + 改修効果 を
+ * あらゆる i (0〜N), 改修値の組み合わせ, 共通行の分岐パターンについて求め、
+ * それぞれA列パス・B列パスを適用した結果 A(x), B(x) を比較する。
+ * A(x) ≠ B(x) となった組み合わせのみを AppState.results に集約し、結果テーブルを描画する。
+ *
+ * 【並列化】この探索は反復変数 i (0〜N) が最も外側のループで、i ごとの計算は
+ * 互いに独立している。以前は単一スレッドの同期ループで実行しており、
+ * setTimeout(...,0) による1フレームの遅延は「計算中」表示を描画する猶予には
+ * なっても計算自体は速くならず、実行中は画面(UI)が完全にブロックされたままだった。
+ * そこで i の範囲を navigator.hardwareConcurrency (実行環境のCPU論理コア数)個の
+ * 連続区間に分割し(splitIntoChunks)、区間ごとに1つのWorkerを起動して
+ * 並列に計算させる(runWorkerChunk)ことで、複数CPUコアを実際に使って
+ * 処理時間を短縮する。
+ *
+ * 【フォールバック】HTMLファイルを file:// で直接開いた場合、Chromium系
+ * ブラウザはWorker生成そのものを拒否する。GitHub Pages等のHTTP(S)配信では
+ * 問題なく並列化されるが、file://でのローカル動作確認でも探索機能自体は
+ * 使えるよう、Worker側で何らかの失敗が起きた場合は単一コアでの逐次計算
+ * (runSearchSequential)に自動でフォールバックする。
+ *
+ * このフォールバックは「事前にWorkerが使えるか判定してから分岐する」方式では
+ * なく、「まず並列実行を試し、失敗したら逐次計算をやり直す」方式にしてある。
+ * 以前は事前判定(テスト用のWorkerを1つ生成してみて例外の有無で判定)を
+ * 行っていたが、file://下でのWorker生成失敗の起こり方はブラウザによって
+ * 同期的な例外(SecurityError)だったり非同期的な失敗(Workerの生成自体は
+ * 成功したように見えるが、スクリプトの読み込みが後から失敗する)だったりし、
+ * 事前判定の同期的な try/catch だけでは検知できないケースがあった。
+ * Promise.all(tasks) の失敗(どのタイミング・どんな理由であれ)を catch して
+ * フォールバックする方式なら、失敗の起こり方に関わらず必ず検知できる。
+ *
+ * 【修正履歴】catch()は Promise.all(tasks) の直後にだけ挟んであり、
+ * 後段の .then(mergeResultsAndRender) は catch の外に置いてある。以前は
+ * .then(mergeResultsAndRender).catch(...) の順で、mergeResultsAndRender()
+ * (結果統合・テーブル描画)側の不具合まで同じcatchで「Workerが使えない」と
+ * 誤診断してしまい、結果件数が多いほど無視できないコストになる無駄な
+ * 全件再計算を引き起こしていた。Worker失敗時のフォールバック結果を
+ * (chunk単位の配列と同じ形の)配列として catch から返し、成功時・
+ * フォールバック時のどちらも同じ .then(mergeResultsAndRender) を通す
+ * ことで、mergeResultsAndRender() 自体の不具合はここで揉み消さず、
+ * executeSearch() 側の最終catchへ正しく伝播するようにしている。
+ *
+ * NODE_TYPES.apply や STAR_FORMULAS.fn 等の関数は postMessage で複製できないため、
+ * Workerには関数そのものではなく「AppState.items(プレーンデータ)」「選択中の
+ * 改修計算関数のid配列」「担当するiの範囲」「N/S/base/fp/tp」といった構造化複製
+ * 可能なデータのみを渡す。Worker側はsearch-core.js(importScripts経由で読み込み、
+ * メインスレッドと同一の実体)を使って自前で計算する。
+ *
+ * @param {number} N - 探索範囲(反復変数iの上限)。
+ * @param {number} S - 改修スロット数。
+ * @param {number} base - 最低保証火力|夜偵。
+ * @param {number} fp - 表示火力。
+ * @param {number} tp - 表示雷装。
+ * @returns {Promise<void>} 計算・結果統合・描画が完了したら解決する。
+ */
+function runSearchParallel(N, S, base, fp, tp) {
+  const formulaIds = Array.from(
+    document.querySelectorAll(".formula-cb:checked"),
+  ).map((cb) => cb.value);
+
+  const total = N + 1;
+  const workerCount = Math.max(
+    1,
+    Math.min(navigator.hardwareConcurrency || 4, total),
+  );
+  const chunks = splitIntoChunks(total, workerCount);
+  const payload = { items: AppState.items, S, base, fp, tp, formulaIds };
+
+  const tasks = chunks.map((chunk) => runWorkerChunk(chunk, payload));
+
+  // catch() は Promise.all(tasks) の直後にだけ挟む(理由はJSDoc参照)。
+  return Promise.all(tasks)
+    .catch((err) => {
+      console.warn(
+        "Web Workerでの並列探索に失敗したため、単一スレッドでの逐次計算にフォールバックします。",
+        err,
+      );
+      return [runSearchSequential(N, S, base, fp, tp, formulaIds)];
+    })
+    .then(mergeResultsAndRender);
 }
 
 /**
@@ -1277,7 +1219,7 @@ function flashElement(el, addClasses, removeClasses, durationMs = 500) {
  * 探索結果の件数が前回の実行と変わらない場合でも、
  * 「今回のクリックで探索が完了した」ことをユーザーに伝えるためのフィードバック。
  *
- * 強調色は「差分網羅探索を実行」ボタンと同じ bg-emp-2 に統一している
+ * 強調色は「総当たり探索を実行」ボタンと同じ bg-emp-2 に統一している
  * (Tailwind標準の green-600 等を使うと、既定の配色にない色が増えてしまい、
  * かつボタンと似て非なる緑が並んで紛らわしくなるため)。
  */
@@ -1297,19 +1239,58 @@ function flashSearchCompletion() {
 // === 7. 結果表示 ===
 
 /**
+ * 結果テーブル・TSV出力で数値を丸める小数桁数。#displayDecimals入力欄の値を
+ * 「探索実行ボタンを押した時」だけ読み取ってここに反映する(executeSearch()参照)。
+ *
+ * 【変更履歴】以前は入力欄のonchangeで即座にこの値を更新し再描画していたが、
+ * renderTable()は結果全件をソートしテーブルHTMLを丸ごと作り直すため、
+ * 結果件数が多いと桁数を変えるだけで毎回重い再描画が走ってしまっていた。
+ * 「桁数はどうせ実行時に見るものが決まればよい」という判断で、入力欄の変更には
+ * 反応せず、次の探索実行時にまとめて反映する方式にした。
+ * @type {number}
+ */
+let displayDecimals = 5;
+
+/**
  * 結果テーブルの列定義。renderTable() (画面描画) と copyResultsAsTsv() (TSV出力) の
  * 両方から参照する唯一の定義元 (列を増減する場合はここだけ変更すればよい)。
  *
  * @type {Array<{ k: string, l: string }>}
  */
 const RESULT_COLUMNS = [
-  { k: "x", l: "x" },
+  { k: "x", l: "最低保証火力+表示火力+表示雷装" },
   { k: "starLabel", l: "改修効果" },
   { k: "pathName", l: "共通分岐" },
   { k: "resA", l: "A(x)" },
   { k: "resB", l: "B(x)" },
   { k: "diff", l: "A(x)-B(x)" },
 ];
+
+/**
+ * AppState.results を現在のソート状態 (AppState.sort、第1キーから順に比較) に従って
+ * 破壊的に並べ替える。
+ *
+ * 【修正履歴】以前はこのソート処理を renderTable() の中に置いていたため、
+ * ソート順が変わっていない「次へ/前へ」でのページ送り(changePage())でも
+ * 呼び出すたびに結果全件をソートし直していた。ページングは1ページあたりの
+ * 描画件数を減らして重さに対応するために導入したのに、肝心のソートが
+ * 毎回O(n log n)で全件走ってしまっては効果が薄い。ソートは「結果が
+ * 新しく確定した時」(mergeResultsAndRender())と「ソート条件そのものが
+ * 変わった時」(setSort())だけ行えばよいため、この2箇所からだけ呼び、
+ * renderTable()・changePage() 側は「既にソート済みの結果から現在の
+ * ページ分を切り出して描画するだけ」の役割に限定した。
+ */
+function sortResults() {
+  AppState.results.sort((a, b) => {
+    for (const { col, asc } of AppState.sort) {
+      const va = a[col];
+      const vb = b[col];
+      const cmp = typeof va === "string" ? va.localeCompare(vb) : va - vb;
+      if (cmp !== 0) return asc ? cmp : -cmp;
+    }
+    return 0;
+  });
+}
 
 /**
  * 結果テーブルのソート列を切り替える。
@@ -1338,12 +1319,48 @@ function setSort(col, event) {
       AppState.sort = [{ col, asc: true }];
     }
   }
+  // 並び順が変わると各ページの内容も変わるため、閲覧中のページ番号を維持する
+  // 意味がない。先頭ページ(0)に戻す。
+  AppState.page = 0;
+  sortResults();
   renderTable();
 }
 
 /**
- * AppState.results を現在のソート状態 (AppState.sort、第1キーから順に比較) に従って
- * 並べ替え、#resultHeader / #resultBody に描画する。結果が0件の場合はその旨を表示する。
+ * 結果テーブルの1ページあたりの表示件数。
+ *
+ * 【修正履歴】以前は MAX_RENDERED_ROWS(20,000件)を上限に先頭からまとめて
+ * 描画していたが、結果が数千〜数万件になるとDOMへの反映(tbody.innerHTMLの
+ * 差し替え)自体が重く、ブラウザの反応が鈍くなる問題があった(さらに以前は
+ * 上限そのものがなく、文字列がJSエンジンの最大文字列長を超えて
+ * `RangeError: Invalid string length` で描画がクラッシュすることもあった)。
+ * 「一度に見るのは現実的にも数百〜千件程度で十分」という判断で、1000件ずつの
+ * ページ送りに変更した。全件のデータ自体は AppState.results に残っており、
+ * 「結果をTSVでコピー」からは引き続き全件(ページ送りの影響を受けない)取得できる。
+ *
+ * @type {number}
+ */
+const PAGE_SIZE = 1000;
+
+/**
+ * 結果テーブルの表示ページを相対的に切り替える(前へ/次へボタンのonclickから呼ばれる)。
+ * ページ範囲外への移動は renderTable() 側でクランプされるため、ここでは
+ * 単純に加算するだけでよい。
+ *
+ * @param {number} delta - 移動するページ数(前へ: -1、次へ: +1)。
+ */
+function changePage(delta) {
+  AppState.page += delta;
+  renderTable();
+}
+
+/**
+ * AppState.results のうち現在のページ(AppState.page、PAGE_SIZE件単位)分だけを
+ * #resultHeader / #resultBody に描画する。結果が0件の場合はその旨を表示する。
+ *
+ * ソート順の反映(AppState.results の並べ替え)はここでは行わない。
+ * sortResults() のJSDoc参照。呼び出し側(setSort()/mergeResultsAndRender())が
+ * 必要なタイミングで sortResults() を呼んでから renderTable() を呼ぶ前提。
  */
 function renderTable() {
   document.getElementById("resultHeader").innerHTML = RESULT_COLUMNS.map(
@@ -1364,38 +1381,62 @@ function renderTable() {
     },
   ).join("");
 
+  const total = AppState.results.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // ソート変更・再検索以外(前へ/次への連打等)でもページ番号が範囲外にならないようクランプする。
+  AppState.page = Math.min(Math.max(AppState.page, 0), totalPages - 1);
+
   const tbody = document.getElementById("resultBody");
-  if (AppState.results.length === 0) {
+  const prevBtn = document.getElementById("prevPageBtn");
+  const nextBtn = document.getElementById("nextPageBtn");
+  const rangeLabel = document.getElementById("paginationRange");
+
+  if (total === 0) {
     tbody.innerHTML = `<tr><td id="noResultsMsg" colspan="${RESULT_COLUMNS.length}" class="text-center p-4 text-gray-500 transition-colors duration-150">不一致はありませんでした。</td></tr>`;
+    rangeLabel.textContent = "0–0 / 全0件";
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
     return;
   }
 
-  AppState.results.sort((a, b) => {
-    for (const { col, asc } of AppState.sort) {
-      const va = a[col];
-      const vb = b[col];
-      const cmp = typeof va === "string" ? va.localeCompare(vb) : va - vb;
-      if (cmp !== 0) return asc ? cmp : -cmp;
-    }
-    return 0;
-  });
+  const startIdx = AppState.page * PAGE_SIZE;
+  const endIdx = Math.min(startIdx + PAGE_SIZE, total);
+  const rowsToRender = AppState.results.slice(startIdx, endIdx);
 
-  let html = "";
-  for (const r of AppState.results) {
+  // 巨大なテンプレートリテラルの += を毎回行うと中間文字列の再生成コストが
+  // 積み重なるため、行ごとの文字列は配列に貯めて最後に1回だけ join する。
+  const rowsHtml = rowsToRender.map((r) => {
     const diffClass =
       r.diff > 0 ? "text-red-700 bg-red-50" : "text-blue-700 bg-blue-50";
-    html += `
+    return `
       <tr class="border-b border-gray-300 hover:bg-gray-50">
-        <td class="p-2 border-r border-gray-300 font-mono">${r.x}</td>
-        <td class="p-2 border-r border-gray-300 text-gray-600">${r.starLabel}</td>
-        <td class="p-2 border-r border-gray-300">${r.pathName}</td>
-        <td class="p-2 border-r border-gray-300 font-mono font-bold text-blue-900 bg-blue-50/50">${r.resA.toFixed(2)}</td>
-        <td class="p-2 border-r border-gray-300 font-mono font-bold text-red-900 bg-red-50/50">${r.resB.toFixed(2)}</td>
-        <td class="p-2 border-r border-gray-300 font-mono font-bold ${diffClass}">${r.diff > 0 ? "+" : ""}${r.diff.toFixed(2)}</td>
+        <td class="p-2 border-r border-gray-300 font-mono whitespace-nowrap">${r.x}</td>
+        <td class="p-2 border-r border-gray-300 text-gray-600 break-words">${formatStarLabel(r)}</td>
+        <td class="p-2 border-r border-gray-300 break-words">${r.pathName}</td>
+        <td class="p-2 border-r border-gray-300 font-mono font-bold text-blue-900 bg-blue-50/50 whitespace-nowrap">${r.resA.toFixed(displayDecimals)}</td>
+        <td class="p-2 border-r border-gray-300 font-mono font-bold text-red-900 bg-red-50/50 whitespace-nowrap">${r.resB.toFixed(displayDecimals)}</td>
+        <td class="p-2 border-r border-gray-300 font-mono font-bold ${diffClass} whitespace-nowrap">${r.diff > 0 ? "+" : ""}${r.diff.toFixed(displayDecimals)}</td>
       </tr>
     `;
-  }
-  tbody.innerHTML = html;
+  });
+
+  tbody.innerHTML = rowsHtml.join("");
+  rangeLabel.textContent = `${(startIdx + 1).toLocaleString()}–${endIdx.toLocaleString()} / 全${total.toLocaleString()}件`;
+  prevBtn.disabled = AppState.page <= 0;
+  nextBtn.disabled = AppState.page >= totalPages - 1;
+}
+
+/**
+ * 結果1件分の「改修効果」列の表示文字列を組み立てる。
+ * S=0(改修なし)の場合は特別値 "0" のみを返し、内訳や合計値の括弧書きは付けない。
+ * それ以外は「(関数,★)の内訳 (+合計値)」の形式にし、合計値は現在の displayDecimals で丸める。
+ *
+ * @param {object} r - AppState.results の1要素 (starLabel/starSum を持つ)。
+ * @returns {string}
+ */
+function formatStarLabel(r) {
+  if (r.starLabel === "0") return "0";
+  return `${r.starLabel} (+${r.starSum.toFixed(displayDecimals)})`;
 }
 
 /**
@@ -1418,7 +1459,7 @@ function escapeTsvField(value) {
 /**
  * 現在の探索結果 (AppState.results、現在のソート順) をTSV形式に変換し、
  * クリップボードにコピーする。列構成は RESULT_COLUMNS / renderTable() の
- * テーブル表示と同じにする(数値は toFixed(2) で丸めて表示値と一致させる)。
+ * テーブル表示と同じにする(数値は現在の displayDecimals で丸めて表示値と一致させる)。
  *
  * CSV(カンマ区切り)ではなくTSV(タブ区切り)にしているのは、「改修効果」列の値に
  * `[3,5]` のようにカンマを含むものがあり、CSVのままだと表計算ソフトに貼り付けた際に
@@ -1432,11 +1473,11 @@ function copyResultsAsTsv() {
   const dataRows = AppState.results.map((r) =>
     [
       r.x,
-      r.starLabel,
+      formatStarLabel(r),
       r.pathName,
-      r.resA.toFixed(2),
-      r.resB.toFixed(2),
-      r.diff.toFixed(2),
+      r.resA.toFixed(displayDecimals),
+      r.resB.toFixed(displayDecimals),
+      r.diff.toFixed(displayDecimals),
     ]
       .map(escapeTsvField)
       .join("\t"),

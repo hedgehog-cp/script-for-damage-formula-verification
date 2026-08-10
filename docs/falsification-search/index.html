@@ -255,6 +255,21 @@
             >
               結果をTSVでコピー
             </button>
+            <label
+              class="flex items-center gap-1 text-xs text-gray-600"
+              title="探索実行ボタンを押した時点の値が反映されます"
+            >
+              表示桁数:
+              <input
+                type="number"
+                id="displayDecimals"
+                value="5"
+                min="0"
+                max="10"
+                step="1"
+                class="sheet-input steppable w-14 text-left"
+              />
+            </label>
           </div>
           <div class="flex items-center gap-3">
             <span class="text-xs text-gray-600"
@@ -271,7 +286,7 @@
               onclick="executeSearch()"
               class="bg-emp-2 text-gray-800 font-bold px-4 py-1 sheet-border rounded text-sm hover:opacity-80 transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              差分網羅探索を実行
+              総当たり探索を実行
             </button>
           </div>
         </div>
@@ -280,9 +295,30 @@
             列見出しをクリックでソート / Shift+クリックで第2キー以降を追加
           </p>
           <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
-            <table
-              class="w-full text-left border-collapse whitespace-nowrap text-xs"
-            >
+            <!--
+              table-fixed(table-layout:fixed)にしているのは性能対策。既定の
+              table-layout:autoは、列幅を決めるのにテーブル内の全行のセル内容を
+              見る必要があり、結果件数が多い(数千〜数万行)とウィンドウのリサイズ
+              (=利用可能な幅の変化)のたびに全行を再計算してしまい、非常に重くなる
+              不具合があった。table-fixedなら列幅は見出し行(colgroup)だけで決まり、
+              行数に依存しなくなる。そのぶん各列の幅を明示する必要があるため、
+              下のcolgroupで指定している(RESULT_COLUMNS の並び順と対応させること)。
+            -->
+            <table class="w-full text-left border-collapse text-xs table-fixed">
+              <colgroup>
+                <col style="width: 8%" />
+                <!-- x -->
+                <col style="width: 32%" />
+                <!-- 改修効果 -->
+                <col style="width: 16%" />
+                <!-- 共通分岐 -->
+                <col style="width: 14%" />
+                <!-- A(x) -->
+                <col style="width: 14%" />
+                <!-- B(x) -->
+                <col style="width: 16%" />
+                <!-- A(x)-B(x) -->
+              </colgroup>
               <thead
                 class="bg-gray-200 sticky top-0 z-10 shadow-sm border-b border-gray-400"
               >
@@ -294,6 +330,27 @@
                 <!-- JS Rendered -->
               </tbody>
             </table>
+          </div>
+          <div
+            class="flex items-center justify-between gap-2 mt-2 text-xs text-gray-600"
+          >
+            <span id="paginationRange">0–0 / 全0件</span>
+            <div class="flex items-center gap-1">
+              <button
+                id="prevPageBtn"
+                onclick="changePage(-1)"
+                class="px-2 py-0.5 sheet-border rounded bg-white/70 hover:opacity-80 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ← 前へ
+              </button>
+              <button
+                id="nextPageBtn"
+                onclick="changePage(1)"
+                class="px-2 py-0.5 sheet-border rounded bg-white/70 hover:opacity-80 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                次へ →
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -361,6 +418,7 @@
       -->
     </main>
 
+    <script src="search-core.js"></script>
     <script src="falsification-search.js"></script>
   </body>
 </html>
