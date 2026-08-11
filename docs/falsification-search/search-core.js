@@ -31,7 +31,7 @@
  * 最初からプレーンテキスト（★を含む）として保持するように変更した。
  *
  * applied は「実際に★値を代入した計算式」を人が読める記法(例: "1*sqrt(1)")で
- * 返す関数で、結果テーブルの「改修効果」列の内訳表示(buildStarBonuses()参照)に使う。
+ * 返す関数で、結果テーブルの「改修効果式」列の表示(buildStarBonuses()参照)に使う。
  *
  * @type {Array<{ id: string, label: string, fn: (star: number) => number, applied: (star: number) => string }>}
  */
@@ -86,57 +86,40 @@ function resolveFormulas(formulaIds) {
 }
 
 /**
- * 補正ステップの種別ごとの振る舞いを1箇所に集約したレジストリ。
+ * 補正ステップの種別ごとの計算ロジックを1箇所に集約したレジストリ。
+ * apply(値xにこの補正を適用した結果を返す。applyFnから呼ばれる)のみを持つ。
  *
  * 【リファクタリング】以前は種別(linear/softcap/floor)ごとの分岐が、
  * ①<select>の選択肢, ②getParamsUIのパラメータ入力欄, ③applyFnの計算式,
  * ④updateNodeType/updateCandの種別変更時デフォルト値リセット、という4箇所に
- * 分散していた。新しい種別(例: 将来の防御力用の補正)を追加する際に4箇所を
- * 漏れなく直す必要があり、修正漏れの温床になっていたため、1つのオブジェクトに
- * まとめた。新しい種別を追加する場合はこのオブジェクトに1エントリ足すだけでよい。
+ * 分散していた。新しい種別を追加する際に4箇所を漏れなく直す必要があり、
+ * 修正漏れの温床になっていたため、当初は label/defaults/paramsUI/apply を
+ * 1つのオブジェクトにまとめていた。
  *
- * - label:    <select>の選択肢に表示する文字列。
- * - defaults: 種別変更時にリセットするパラメータ (a/b や cap) を返す。
- * - paramsUI: パラメータ入力欄のHTML断片を返す (getParamsUI から呼ばれる)。
- * - apply:    値 x にこの補正を適用した結果を返す (applyFn から呼ばれる)。
+ * 【修正履歴】その後、メインスレッドとWeb Workerの双方から使う計算ロジックを
+ * この search-core.js に切り出した際、NODE_TYPES をこのオブジェクトごと
+ * そのまま移設していた。しかし label/defaults/paramsUI はメインスレッド側の
+ * DOM描画(<select>の選択肢、パラメータ入力欄のHTML、種別変更時のリセット)
+ * にしか使われない純粋なUI関心事で、Workerからは一度も参照されない
+ * (Workerが必要とするのは apply だけ)。ファイル冒頭のコメントで
+ * 「Web Workerと共有する計算ロジック」とスコープを明言しているにもかかわらず
+ * UI専用のコードが紛れ込んでいたため、apply のみをここに残し、
+ * label/defaults/paramsUI は falsification-search.js の NODE_TYPES_UI へ
+ * 分離した(型・種別キーは両者で対応させてあるので、UI側の呼び出し元は
+ * NODE_TYPES_UI[type] を見ればよい)。
  *
- * @type {Record<string, {
- *   label: string,
- *   defaults: () => object,
- *   paramsUI: (node: object, onChangeStr: string) => string,
- *   apply: (x: number, node: object) => number,
- * }>}
+ * @type {Record<string, { apply: (x: number, node: object) => number }>}
  */
 const NODE_TYPES = {
   linear: {
-    label: "f(x)=x+a+b",
-    defaults: () => ({ a: 0, b: 0 }),
-    paramsUI: (node, onChangeStr) => `
-      <label class="flex items-center gap-1 text-xs whitespace-nowrap"><span class="text-gray-500">a:</span>
-        <input type="number" step="0.0001" value="${node.a !== undefined ? node.a : 1}" class="sheet-input steppable w-24 text-left font-mono rounded" onchange="${onChangeStr}, 'a', parseFloat(this.value) || 0)">
-      </label>
-      <label class="flex items-center gap-1 text-xs whitespace-nowrap"><span class="text-gray-500">b:</span>
-        <input type="number" step="0.0001" value="${node.b || 0}" class="sheet-input steppable w-24 text-left font-mono rounded" onchange="${onChangeStr}, 'b', parseFloat(this.value) || 0)">
-      </label>
-    `,
     // 補正は乗算(ax+b)ではなく、ゲーム実装(x+=a; x+=b)に合わせた加算(x+a+b)として計算する。
     apply: (x, node) => x + (node.a || 0) + (node.b || 0),
   },
   softcap: {
-    label: "f(x)=softcap(x)",
-    defaults: () => ({ cap: 220 }),
-    paramsUI: (node, onChangeStr) => `
-      <label class="flex items-center gap-1 text-xs whitespace-nowrap"><span class="text-gray-500">cap:</span>
-        <input type="number" step="1" value="${node.cap !== undefined ? node.cap : 220}" class="sheet-input steppable w-16 text-left font-mono rounded" onchange="${onChangeStr}, 'cap', parseFloat(this.value) || 0)">
-      </label>
-    `,
     apply: (x, node) =>
       x > (node.cap || 0) ? node.cap + Math.sqrt(x - node.cap) : x,
   },
   floor: {
-    label: "f(x)=floor(x)",
-    defaults: () => ({}),
-    paramsUI: () => "",
     apply: (x) => Math.floor(x),
   },
 };
@@ -183,8 +166,8 @@ function getStarCombinations(arr, k) {
  *
  * 各要素は「その組み合わせでの改修効果の合計値(val)」と「内訳の表示ラベル
  * (label、例: "1*sqrt(1)+0.2*3")」を持つ。合計値のtoFixed()は保存時ではなく
- * 表示時(falsification-search.js の formatStarLabel())に行うため、labelには
- * 合計値の文字列を含めない。
+ * 表示時(falsification-search.js の renderTable()/copyResultsAsTsv())に
+ * 行うため、labelには合計値の文字列を含めない。
  *
  * 各スロットは「改修計算関数」と「★値」を独立に選べる(同じ探索パターン内で
  * スロットごとに異なる関数を使ってよい。例: スロット1は1.0√★の★1、
@@ -316,46 +299,62 @@ function generateExecutionPaths(items, idx = 0) {
 }
 
 /**
- * items(パイプライン構成)と各種パラメータから、反復変数 i∈[iStart,iEnd] の範囲で
- * A(x)≠B(x) となる反例を計算する。
+ * 改修値の組み合わせ(starBonuses)とパイプラインの分岐パターン(paths)から、
+ * 反復変数 i∈[iStart,iEnd] の範囲で A(x)≠B(x) となる反例を計算する。
  *
  * search-worker.js(Worker内)からも、Web Workerが使えない環境でのフォールバック
  * (falsification-search.js の runSearchParallel、file://で直接開いた場合など)
  * からも、この同一の実体を呼び出す。ループ本体を1箇所にまとめることで、
  * 並列(Worker)経路と非並列(フォールバック)経路の計算結果が食い違う心配がない。
  *
- * @param {object[]} items - AppState.items相当のパイプライン構成データ。
- * @param {number} iStart - 反復変数iの開始値(この値を含む)。
- * @param {number} iEnd - 反復変数iの終了値(この値を含む)。
- * @param {number} S - 改修スロット数。
- * @param {number} base - 最低保証火力|夜偵。
- * @param {number} fp - 表示火力。
- * @param {number} tp - 表示雷装。
- * @param {Array<{id,label,fn,applied}>} selectedFns - 選択中の改修計算関数。
- * @returns {object[]} 反例(x/starLabel/starSum/pathName/resA/resB/diff)の配列。
+ * 【修正履歴】以前は items(パイプライン構成)・S・selectedFns を受け取り、
+ * buildStarBonuses()/generateExecutionPaths() をこの関数の内部で呼んでいた。
+ * これらはiStart/iEndに依存しないため、区間(chunk)ごとに1つずつ生成される
+ * Worker全てが同一の starBonuses/paths を毎回ゼロから再計算しており、
+ * Worker数倍の無駄な計算(改修値の重複組み合わせ列挙や共通行の分岐生成)が
+ * 発生していた。呼び出し側(runSearchParallel())で1回だけ計算し、
+ * その結果(構造化複製可能なプレーンデータ)をWorkerへ渡す形に変更した。
+ *
+ * @param {object} params
+ * @param {Array<{val:number, label:string}>} params.starBonuses - buildStarBonuses()の結果。
+ * @param {Array<{pathA:object[], pathB:object[], names:string[]}>} params.paths - generateExecutionPaths()の結果。
+ * @param {number} params.iStart - 反復変数iの開始値(この値を含む)。
+ * @param {number} params.iEnd - 反復変数iの終了値(この値を含む)。
+ * @param {number} params.base - 最低保証火力|夜偵。
+ * @param {number} params.fp - 表示火力。
+ * @param {number} params.tp - 表示雷装。
+ * @returns {object[]} 反例(baseX/starLabel/starSum/x/pathName/resA/resB/diff)の配列。
  */
-function computeSearchResults(items, iStart, iEnd, S, base, fp, tp, selectedFns) {
-  const starBonuses = buildStarBonuses(S, selectedFns);
-  const paths = generateExecutionPaths(items);
-
+function computeSearchResults({
+  starBonuses,
+  paths,
+  iStart,
+  iEnd,
+  base,
+  fp,
+  tp,
+}) {
   const results = [];
   for (let i = iStart; i <= iEnd; i++) {
-    // x: 最低保証火力|夜偵 + 表示火力 + 表示雷装 + 反復変数i の合計(改修効果を含まない
-    // 「基本攻撃力」部分)。結果テーブルの最左列に表示する。
-    const x = base + fp + tp + i;
+    // baseX: 最低保証火力|夜偵 + 表示火力 + 表示雷装 + 反復変数i の合計(改修効果を
+    // 含まない「基本攻撃力」部分)。結果テーブルの最左列に表示する。
+    const baseX = base + fp + tp + i;
 
     for (const sb of starBonuses) {
-      const initX = x + sb.val;
+      // x: baseX に改修効果値(sb.val)を加えた値。これが実際に A(x)/B(x) の
+      // 引数として適用される「探索対象火力」そのもの。
+      const x = baseX + sb.val;
 
       for (const path of paths) {
-        const valA = applyPipeline(initX, path.pathA);
-        const valB = applyPipeline(initX, path.pathB);
+        const valA = applyPipeline(x, path.pathA);
+        const valB = applyPipeline(x, path.pathB);
 
         if (Math.abs(valA - valB) > 1e-9) {
           results.push({
-            x: x,
+            baseX: baseX,
             starLabel: sb.label,
             starSum: sb.val,
+            x: x,
             pathName: path.names.join(" / ") || "-",
             resA: valA,
             resB: valB,

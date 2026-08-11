@@ -8,15 +8,6 @@
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!--
-      グラフ機能は無効化済み(falsification-search.js の8節参照)。
-      「交戦形態補正」以外の共通行を新規追加した際にグラフへ正しく反映されない
-      不具合が見つかり、修正コストに見合わないと判断してコメントアウトした。
-      Chart.js (A(x)/B(x)グラフ用)
-      <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-      chartjs-plugin-zoom (グラフのホイールズーム・ドラッグパン用)
-      <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2"></script>
-    -->
     <script>
       tailwind.config = {
         theme: {
@@ -71,7 +62,7 @@
           <h2 class="font-bold text-purple-900">1. 基本攻撃力</h2>
         </div>
 
-        <div id="section1Body">
+        <div id="section1Body" data-lock-during-search>
           <div class="flex flex-wrap gap-3 mb-3">
             <div class="flex flex-col w-28">
               <label for="baseVal" class="text-xs text-gray-600 mb-1"
@@ -161,7 +152,11 @@
       </section>
 
       <!-- 2. 部分式の構築 -->
-      <section class="bg-bg-panel sheet-border p-3">
+      <section
+        id="pipelineSection"
+        data-lock-during-search
+        class="bg-bg-panel sheet-border p-3"
+      >
         <div
           class="flex flex-wrap justify-between items-center border-b border-gray-300 pb-1 mb-3 gap-2"
         >
@@ -227,7 +222,7 @@
       </section>
 
       <!-- 3. 結果出力 -->
-      <section id="resultsSection" class="bg-bg-panel sheet-border p-3 rounded">
+      <section class="bg-bg-panel sheet-border p-3 rounded">
         <div
           class="border-b border-gray-300 pb-1 mb-3 flex flex-wrap justify-between items-center gap-2"
         >
@@ -307,10 +302,14 @@
             <table class="w-full text-left border-collapse text-xs table-fixed">
               <colgroup>
                 <col style="width: 8%" />
-                <!-- x -->
-                <col style="width: 32%" />
-                <!-- 改修効果 -->
+                <!-- 最低保証火力+表示火力+表示雷装 -->
                 <col style="width: 16%" />
+                <!-- 改修効果式 -->
+                <col style="width: 12%" />
+                <!-- 改修効果値 -->
+                <col style="width: 8%" />
+                <!-- x -->
+                <col style="width: 12%" />
                 <!-- 共通分岐 -->
                 <col style="width: 14%" />
                 <!-- A(x) -->
@@ -354,68 +353,6 @@
           </div>
         </div>
       </section>
-
-      <!--
-        4. A(x)/B(x) グラフ (無効化)
-        【廃止履歴】A(x)/B(x)をChart.jsで折れ線グラフ表示する機能を実装したが、
-        「交戦形態補正」以外の共通行(共通補正)を新規追加した場合に、その内容が
-        グラフに正しく反映されない不具合が見つかった。原因調査・修正の手間が
-        見合わないとユーザーが判断したため、要素を削除せず以下をまとめて
-        コメントアウトして無効化した(復活させたい場合はここを参照。
-        falsification-search.js の8節、および <head> のChart.js読み込みも
-        あわせてコメントアウトしてある)。
-
-      [[ 4. A(x)/B(x) グラフ ]]
-      <section class="bg-bg-panel sheet-border p-3 rounded">
-        <div
-          class="border-b border-gray-300 pb-1 mb-3 flex items-center gap-2 cursor-pointer"
-          onclick="toggleSection('graphBody')"
-        >
-          <span id="graphChevron" class="text-xs text-gray-500">▼</span>
-          <h2 class="font-bold text-purple-900">4. A(x)/B(x) グラフ</h2>
-        </div>
-        <div id="graphBody">
-          [[ 表示モード切替: 同じグラフ領域を「A(x)/B(x)表示」⇔「差分表示」で切り替える ]]
-          <div class="flex gap-2 mb-3">
-            <button
-              id="graphModeAbBtn"
-              onclick="setGraphMode('ab')"
-              class="text-xs px-2 py-0.5 sheet-border rounded transition"
-            >
-              A(x)/B(x)表示
-            </button>
-            <button
-              id="graphModeDiffBtn"
-              onclick="setGraphMode('diff')"
-              class="text-xs px-2 py-0.5 sheet-border rounded transition"
-            >
-              差分表示
-            </button>
-          </div>
-          <div class="flex flex-wrap justify-between items-end gap-3 mb-3">
-            [[ 共通行(交戦形態補正など)が複数候補を持つ場合、グラフ計算に使う候補を選ぶプルダウン ]]
-            <div id="graphBranchSelectors" class="flex flex-wrap gap-3">
-              [[ JS Rendered ]]
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-xs text-gray-500"
-                >ホイール: ズーム / ドラッグ: パン</span
-              >
-              <button
-                onclick="abChart.resetZoom()"
-                class="text-xs text-black bg-white/70 px-2 py-0.5 sheet-border rounded hover:opacity-80 transition"
-              >
-                ズームをリセット
-              </button>
-            </div>
-          </div>
-          <div class="bg-bg-main sheet-border rounded p-2 h-80">
-            <canvas id="abChart"></canvas>
-          </div>
-        </div>
-      </section>
-
-      -->
     </main>
 
     <script src="search-core.js"></script>

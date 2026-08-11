@@ -7,9 +7,6 @@
  *   のあらゆる組み合わせを網羅的に試行して A(x) と B(x) が一致しない反証可能火力x(反例)を探す。
  *   探索対象は式そのものではなく、式に投入する引数 x を構成する各パラメータの組み合わせである。
  *
- * 参照:
- *   ../docs/要約.md — 開発経緯と、AI(Gemini/Claude)による過去の誤対応の記録。
- *
  * 依存ファイル:
  *   search-core.js — NODE_TYPES/STAR_FORMULAS等、Web Worker(search-worker.js)と
  *   共有する計算ロジック。index.htmlでこのファイルより先に読み込む必要がある
@@ -17,9 +14,10 @@
  *
  * 構成 (各セクション見出しの番号は本ファイル内の見出しコメントに対応):
  *   0.  ユーティリティ             — escapeHtml 等、他セクションから横断的に使う小関数
- *   1.  マスターデータ・状態定義   — 種別<option>生成(nodeTypeOptionsHtml)、
- *                                    パイプラインの状態(AppState)。NODE_TYPES/STAR_FORMULAS
- *                                    そのものはsearch-core.jsで定義している。
+ *   1.  マスターデータ・状態定義   — 補正ステップ種別のUI定義(NODE_TYPES_UI)、
+ *                                    種別<option>生成(nodeTypeOptionsHtml)、
+ *                                    パイプラインの状態(AppState)。計算ロジックの
+ *                                    NODE_TYPES/STAR_FORMULASはsearch-core.jsで定義している。
  *   1b. Undo (Ctrl+Z)
  *   2.  初期化                     — ページロード時の初期描画、セクション折りたたみ、
  *                                    改修計算関数候補チェックボックスの描画(renderFormulas)
@@ -30,10 +28,6 @@
  *                                    実際の計算(applyPipeline等)はsearch-core.jsを
  *                                    Web Worker(search-worker.js)経由で並列実行する。
  *   7.  結果表示                   — 結果テーブルの描画・ソート・TSVコピー
- *   8.  グラフ描画 (無効化)        — A(x)/B(x)の折れ線グラフ。「交戦形態補正」以外の
- *                                    共通行を新規追加した際にグラフへ正しく反映されない
- *                                    不具合が見つかり、修正コストに見合わないと判断して
- *                                    コメントアウトで無効化した(詳細は8節冒頭のコメント)。
  */
 
 // === 0. ユーティリティ ===
@@ -60,10 +54,57 @@ function escapeHtml(str) {
 }
 
 // === 1. マスターデータ・状態定義 ===
-// NODE_TYPES/STAR_FORMULAS の定義本体は search-core.js を参照(ファイル先頭コメント参照)。
+// STAR_FORMULAS の定義本体は search-core.js を参照(ファイル先頭コメント参照)。
 
 /**
- * NODE_TYPES の全種別を <option> タグの並びとして返す。
+ * 補正ステップの種別ごとのUI関心事(<select>の選択肢ラベル、種別変更時の
+ * デフォルトパラメータ、パラメータ入力欄のHTML)を1箇所に集約したレジストリ。
+ * 計算ロジック(apply)は search-core.js の NODE_TYPES(Web Workerとも共有)に
+ * ある。キー(linear/softcap/floor)は両者で対応させてあり、ノード1件分の
+ * 種別を扱う際は基本的に NODE_TYPES_UI[type] と NODE_TYPES[type] の両方を
+ * (必要な方だけ)参照することになる。
+ *
+ * - label:    <select>の選択肢に表示する文字列。
+ * - defaults: 種別変更時にリセットするパラメータ (a/b や cap) を返す。
+ * - paramsUI: パラメータ入力欄のHTML断片を返す (getParamsUI から呼ばれる)。
+ *
+ * @type {Record<string, {
+ *   label: string,
+ *   defaults: () => object,
+ *   paramsUI: (node: object, onChangeStr: string) => string,
+ * }>}
+ */
+const NODE_TYPES_UI = {
+  linear: {
+    label: "f(x)=x+a+b",
+    defaults: () => ({ a: 0, b: 0 }),
+    paramsUI: (node, onChangeStr) => `
+      <label class="flex items-center gap-1 text-xs whitespace-nowrap"><span class="text-gray-500">a:</span>
+        <input type="number" step="0.0001" value="${node.a !== undefined ? node.a : 1}" class="sheet-input steppable w-24 text-left font-mono rounded" onchange="${onChangeStr}, 'a', parseFloat(this.value) || 0)">
+      </label>
+      <label class="flex items-center gap-1 text-xs whitespace-nowrap"><span class="text-gray-500">b:</span>
+        <input type="number" step="0.0001" value="${node.b || 0}" class="sheet-input steppable w-24 text-left font-mono rounded" onchange="${onChangeStr}, 'b', parseFloat(this.value) || 0)">
+      </label>
+    `,
+  },
+  softcap: {
+    label: "f(x)=softcap(x)",
+    defaults: () => ({ cap: 220 }),
+    paramsUI: (node, onChangeStr) => `
+      <label class="flex items-center gap-1 text-xs whitespace-nowrap"><span class="text-gray-500">cap:</span>
+        <input type="number" step="1" value="${node.cap !== undefined ? node.cap : 220}" class="sheet-input steppable w-16 text-left font-mono rounded" onchange="${onChangeStr}, 'cap', parseFloat(this.value) || 0)">
+      </label>
+    `,
+  },
+  floor: {
+    label: "f(x)=floor(x)",
+    defaults: () => ({}),
+    paramsUI: () => "",
+  },
+};
+
+/**
+ * NODE_TYPES_UI の全種別を <option> タグの並びとして返す。
  * 個別ノードカードの種別セレクトと、共通行候補の種別セレクトの両方から
  * 呼ばれる (以前はこの2箇所に同じ3つの<option>がそのまま重複して書かれていた)。
  *
@@ -71,7 +112,7 @@ function escapeHtml(str) {
  * @returns {string} <option>タグを連結したHTML文字列。
  */
 function nodeTypeOptionsHtml(selectedType) {
-  return Object.entries(NODE_TYPES)
+  return Object.entries(NODE_TYPES_UI)
     .map(
       ([key, def]) =>
         `<option value="${key}" ${key === selectedType ? "selected" : ""}>${def.label}</option>`,
@@ -157,7 +198,7 @@ let AppState = {
   ],
   draggedId: null,
   results: [],
-  sort: [{ col: "x", asc: true }],
+  sort: [{ col: "baseX", asc: true }],
   page: 0,
 };
 
@@ -183,9 +224,17 @@ function pushHistory() {
 /**
  * undoStack から直前のスナップショットを1つ取り出し、AppState.items を復元して再描画する。
  * 履歴が空の場合は何もしない。
+ *
+ * 探索実行中は何もしない。パイプライン編集UIそのものは setPipelineEditingLocked()
+ * が pointer-events:none / disabled で無効化しているが、これはマウス操作・
+ * フォーム部品の操作のみを防ぐものであり、キーボードショートカット(Ctrl+Z)は
+ * ここで個別にガードする必要がある。「探索実行中かどうか」は#executeBtnの
+ * disabled状態と常に一致する(executeSearch()参照)ため、別途フラグ変数は
+ * 持たずここで直接参照する。
  */
 function undo() {
-  if (undoStack.length === 0) return;
+  if (document.getElementById("executeBtn").disabled || undoStack.length === 0)
+    return;
   AppState.items = JSON.parse(undoStack.pop());
   renderPipeline();
   updateEstimates();
@@ -252,10 +301,6 @@ function renderFormulas() {
  * (=common行の間に挟まれた node の並びが、パイプライン上での見た目のグループになる)。
  * 補正関数A/近似関数Bの構成が完全一致しているかどうかの警告は、常時バナー表示ではなく
  * 探索実行時のトースト通知に変更したため、ここでは呼び出さない(executeSearch()参照)。
- *
- * 【廃止履歴】以前は末尾で refreshGraph() を呼び、グラフ(8節、現在は無効化)の
- * 候補選択プルダウンと描画を最新stateと一致させていたが、グラフ機能自体を
- * コメントアウトしたため、この呼び出しも合わせて無効化してある。
  */
 function renderPipeline() {
   const container = document.getElementById("pipelineContainer");
@@ -277,8 +322,6 @@ function renderPipeline() {
       container.appendChild(createNodeSectionDOM(group));
     }
   }
-
-  // refreshGraph(); // グラフ機能は無効化済み(8節参照)。
 }
 
 /**
@@ -441,8 +484,8 @@ function createCommonDOM(item) {
 
 /**
  * ノード(または共通行の候補)の種別(type)に応じたパラメータ入力欄のHTML断片を返す。
- * 実体は NODE_TYPES[node.type].paramsUI() への委譲。種別ごとのUIを個別に
- * 分岐させず1箇所(NODE_TYPES)にまとめてあるので、ここでは呼び出すだけでよい。
+ * 実体は NODE_TYPES_UI[node.type].paramsUI() への委譲。種別ごとのUIを個別に
+ * 分岐させず1箇所(NODE_TYPES_UI)にまとめてあるので、ここでは呼び出すだけでよい。
  *
  * @param {object} node - type/a/b/cap を持つノードまたは候補オブジェクト。
  * @param {?string} [parentId] - 共通行の候補の場合、その共通行のid。個別ノードの場合は null。
@@ -455,7 +498,7 @@ function getParamsUI(node, parentId = null, candIdx = null) {
       ? `updateCand('${parentId}', ${candIdx}`
       : `updateItem('${node.id}'`;
 
-  const def = NODE_TYPES[node.type];
+  const def = NODE_TYPES_UI[node.type];
   return def ? def.paramsUI(node, onChangeStr) : "";
 }
 
@@ -654,11 +697,6 @@ function onContainerDrop(e, targetCol) {
 /**
  * id で指定した item (node または common) の任意のプロパティを更新する。
  *
- * 【廃止履歴】以前はここで updateGraph() を呼び、renderPipeline() を伴わない
- * 軽量な更新でも a/b/cap 等パラメータ値の変更がグラフ(8節、現在は無効化)に
- * 反映されるようにしていたが、グラフ機能自体をコメントアウトしたため、
- * この呼び出しも合わせて無効化してある。
- *
  * @param {string} id - 更新対象の item id。
  * @param {string} key - 更新するプロパティ名 (例: 'name')。
  * @param {*} val - 新しい値。
@@ -668,7 +706,6 @@ function updateItem(id, key, val) {
   if (item) {
     pushHistory();
     item[key] = val;
-    // updateGraph(); // グラフ機能は無効化済み(8節参照)。
   }
 }
 
@@ -683,7 +720,7 @@ function updateNodeType(id, type) {
   if (item && item.kind === "node") {
     pushHistory();
     item.type = type;
-    Object.assign(item, NODE_TYPES[type].defaults());
+    Object.assign(item, NODE_TYPES_UI[type].defaults());
     renderPipeline();
   }
 }
@@ -785,11 +822,10 @@ function updateCand(parentId, candIdx, key, val) {
     pushHistory();
     if (key === "type") {
       item.candidates[candIdx].type = val;
-      Object.assign(item.candidates[candIdx], NODE_TYPES[val].defaults());
+      Object.assign(item.candidates[candIdx], NODE_TYPES_UI[val].defaults());
       renderPipeline();
     } else {
       item.candidates[candIdx][key] = val;
-      // updateGraph(); // グラフ機能は無効化済み(8節参照)。
     }
   }
 }
@@ -932,11 +968,57 @@ function updateEstimates() {
   const total = (N + 1) * starPatterns * pathPatterns;
   document.getElementById("estimateDisplay").textContent =
     Math.round(total).toLocaleString();
+}
 
-  // 【廃止履歴】以前はここで updateGraph() を呼び、N・最低保証火力・表示火力・
-  // 表示雷装の変更をグラフ(8節、現在は無効化)のx範囲へ反映していたが、
-  // グラフ機能自体をコメントアウトしたため、この呼び出しも合わせて無効化してある。
-  // updateGraph(); // グラフ機能は無効化済み(8節参照)。
+/**
+ * 探索の入力条件となるUI ── data-lock-during-search 属性を持つコンテナ
+ * (現状は index.html の #section1Body と #pipelineSection の2つ。
+ * 1節: 基本攻撃力の入力欄・改修計算関数チェックボックス。2節: 共通補正/
+ * 補正の追加ボタン・複製ボタン・#pipelineContainer内のノード編集・D&D) ──
+ * の有効/無効を切り替える。
+ *
+ * 【背景】以前(単一スレッドの同期実行)は探索の実行中はブラウザ自体が
+ * ブロックされており、これらを編集する操作は物理的に不可能だった。
+ * Web Worker化(runSearchParallel())で探索が非同期になり、実行中も画面の
+ * 他の部分を操作できるようになったことで、探索実行中にこれらを編集すると
+ * 「画面に表示されている入力条件」と「実際に探索された(これから表示される
+ * 結果が対応する)入力条件」が食い違ってしまう問題が新たに生じた。
+ * これを避けるため、探索実行中は編集不可にする。
+ *
+ * 【修正履歴】当初は #section2Body だけをロック対象にしていたが、
+ * 「+ 共通補正を追加」ボタンが1節の外側(2節のヘッダー行)にあり
+ * #section2Body に含まれていないこと、および1節の入力欄・改修計算関数
+ * チェックボックス自体がロック対象に含まれていなかったことに気づかず、
+ * 探索実行中でもこれらを操作できてしまっていた。#section1Body と
+ * #pipelineSection をロック対象に加えて一旦解決したが、この時点では
+ * ロック対象をJS側でid列挙するコード(このコメントの旧版参照)になっており、
+ * これはまさに元の不具合(ロック対象の列挙漏れ)と同じ形の脆さを抱えていた
+ * ── 将来、探索条件に影響する新しいUI要素をこの2つのコンテナの外側に
+ * 追加すると、同じ穴が再発する。そのため「ロック対象かどうか」をJS側の
+ * 固定リストではなくHTML側の data-lock-during-search 属性で宣言する形に
+ * 改め、新しい要素を追加する側が対応するコンテナに属性を付けるだけで
+ * 自動的にロック対象へ含まれるようにした。
+ *
+ * pointer-events:none はマウスでのクリック/ドラッグ操作しか防げない
+ * (フォーカス済み、またはTabキーでフォーカス移動した input/select は
+ * キーボードから編集できてしまう)ため、input/select/button/textarea
+ * には別途 disabled 属性を設定する。これらの対象外(D&Dのドラッグハンドル
+ * など)は pointer-events:none のみに頼る。また、キーボードショートカット
+ * (Ctrl+Zのundo())は #executeBtn の disabled 状態を個別にチェックして
+ * ガードしている(undo()参照)。
+ *
+ * @param {boolean} locked - true で編集不可にする。
+ */
+function setPipelineEditingLocked(locked) {
+  document.querySelectorAll("[data-lock-during-search]").forEach((el) => {
+    el.classList.toggle("opacity-60", locked);
+    el.classList.toggle("pointer-events-none", locked);
+    el.querySelectorAll("input, select, button, textarea").forEach(
+      (control) => {
+        control.disabled = locked;
+      },
+    );
+  });
 }
 
 /**
@@ -974,18 +1056,23 @@ function executeSearch() {
   }
 
   // 表示桁数は入力欄のonchangeには反応させず、実行のこのタイミングでまとめて
-  // 読み取る(displayDecimalsのJSDoc参照)。
-  const decimalsInput = parseInt(
-    document.getElementById("displayDecimals").value,
-  );
-  displayDecimals = Number.isFinite(decimalsInput) && decimalsInput >= 0
-    ? decimalsInput
+  // 読み取る(displayDecimalsのJSDoc参照)。上限は入力欄自身のmax属性から
+  // 読み取る(値をここに複製して二重管理にしない)。範囲外の値(キーボード
+  // 直接入力はHTMLのmax属性による制限を受けない)をtoFixed()にそのまま渡すと
+  // Number.prototype.toFixed() は引数が0〜100の範囲外だとRangeErrorを投げる
+  // 仕様のため、ここで必ず0〜maxへクランプする。
+  const decimalsEl = document.getElementById("displayDecimals");
+  const decimalsInput = parseInt(decimalsEl.value);
+  const decimalsMax = parseInt(decimalsEl.max);
+  displayDecimals = Number.isFinite(decimalsInput)
+    ? Math.min(Math.max(decimalsInput, 0), decimalsMax)
     : 5;
 
   const btn = document.getElementById("executeBtn");
   const originalLabel = btn.textContent;
   btn.disabled = true;
   btn.textContent = "計算中…";
+  setPipelineEditingLocked(true);
 
   setTimeout(() => {
     runSearchParallel(N, S, base, fp, tp)
@@ -998,6 +1085,7 @@ function executeSearch() {
       .finally(() => {
         btn.disabled = false;
         btn.textContent = originalLabel;
+        setPipelineEditingLocked(false);
       });
   }, 0);
 }
@@ -1035,7 +1123,7 @@ function splitIntoChunks(total, workerCount) {
  * リソース(スレッド)を残さないようにする。
  *
  * @param {{ iStart: number, iEnd: number }} chunk - このWorkerが担当するiの区間。
- * @param {object} payload - chunk以外の共通パラメータ(items/S/base/fp/tp/formulaIds)。
+ * @param {object} payload - chunk以外の共通パラメータ(starBonuses/paths/base/fp/tp)。
  * @returns {Promise<object[]>} この区間で見つかった反例(A(x)≠B(x))の配列。
  */
 function runWorkerChunk(chunk, payload) {
@@ -1059,17 +1147,24 @@ function runWorkerChunk(chunk, payload) {
  * 並列化されない(=単一コアのみ使用)以外はWorker経路と同じ結果を返す
  * (実際の計算ループはsearch-core.jsの同一関数を使うため、結果は完全に一致する)。
  *
+ * @param {Array<{val:number, label:string}>} starBonuses - buildStarBonuses()の結果(runSearchParallel()で計算済み)。
+ * @param {Array<{pathA:object[], pathB:object[], names:string[]}>} paths - generateExecutionPaths()の結果(同上)。
  * @param {number} N - 探索範囲(反復変数iの上限)。
- * @param {number} S - 改修スロット数。
  * @param {number} base - 最低保証火力|夜偵。
  * @param {number} fp - 表示火力。
  * @param {number} tp - 表示雷装。
- * @param {string[]} formulaIds - 選択中の改修計算関数のid配列。
  * @returns {object[]} 反例(A(x)≠B(x))の配列。
  */
-function runSearchSequential(N, S, base, fp, tp, formulaIds) {
-  const selectedFns = resolveFormulas(formulaIds);
-  return computeSearchResults(AppState.items, 0, N, S, base, fp, tp, selectedFns);
+function runSearchSequential(starBonuses, paths, N, base, fp, tp) {
+  return computeSearchResults({
+    starBonuses,
+    paths,
+    iStart: 0,
+    iEnd: N,
+    base,
+    fp,
+    tp,
+  });
 }
 
 /**
@@ -1080,10 +1175,21 @@ function runSearchSequential(N, S, base, fp, tp, formulaIds) {
  * @param {object[][]} resultsPerChunk - 各区間(またはフォールバックの単一区間)の結果配列の配列。
  */
 function mergeResultsAndRender(resultsPerChunk) {
-  // Worker経路では各Workerが担当するiの区間内で昇順に結果を積んでいるため、
-  // 区間の順番(chunks/tasksの生成順=iの昇順)通りに連結すれば全体としても
-  // x昇順のままマージされる(初期表示のソート(下記 AppState.sort)を
-  // 待たずに見た目上も自然)。
+  // Worker経路: Promise.all は各要素を「解決順」ではなく「渡した配列の順序」で
+  // 返す仕様のため、resultsPerChunk は必ず chunks(=splitIntoChunksが返す
+  // iStart昇順の区間列)と同じ順序になる。各chunk自身の内部ループもi昇順で
+  // 結果を積んでいる(search-core.js の computeSearchResults 参照)。
+  // フォールバック経路(runSearchSequential)も同様に単一のi昇順ループである。
+  // したがって flat() した時点で全体が必ず baseX 昇順になっており、
+  // 下で AppState.sort を baseX 昇順にリセットする値と既に一致しているため、
+  // ここで改めて sortResults() を呼ぶ必要はない(以前は呼んでいたが、
+  // この不変条件は暗黙の前提ではなく上記の理由により保証されているため、
+  // 結果件数が多いほどコストが大きい冗長なO(n log n)処理を削除した)。
+  //
+  // デフォルトのソートキーを x(baseXに改修効果値を加えた値)ではなく
+  // baseX にしているのはこの保証を成立させるため。x は同じi(baseX)の中でも
+  // 改修値の組み合わせ(starBonuses、列挙順は合計値の大小と無関係)によって
+  // 前後しうるため、xを既定ソートキーにすると上記の不変条件が崩れる。
   AppState.results = resultsPerChunk.flat();
 
   // 探索結果セクションは常時表示だが、折りたたまれている状態で実行された場合は
@@ -1094,13 +1200,8 @@ function mergeResultsAndRender(resultsPerChunk) {
   document.getElementById("resultCount").textContent =
     `${AppState.results.length.toLocaleString()} 件`;
 
-  AppState.sort = [{ col: "x", asc: true }];
+  AppState.sort = [{ col: "baseX", asc: true }];
   AppState.page = 0;
-  // renderTable() はもうソートを行わない(sortResults()のJSDoc参照)ため、
-  // ここで明示的に呼ぶ。マージ直後の時点で実質x昇順になっているとはいえ、
-  // それはchunkの結合順に依存した暗黙の前提でしかないため、renderTable()に
-  // 渡す前にここで確実にソート済みの状態を保証しておく。
-  sortResults();
   renderTable();
 
   // 件数が前回と同じ(0件のまま等)でも「今回の実行が完了した」ことが視覚的に
@@ -1155,10 +1256,11 @@ function mergeResultsAndRender(resultsPerChunk) {
  * executeSearch() 側の最終catchへ正しく伝播するようにしている。
  *
  * NODE_TYPES.apply や STAR_FORMULAS.fn 等の関数は postMessage で複製できないため、
- * Workerには関数そのものではなく「AppState.items(プレーンデータ)」「選択中の
- * 改修計算関数のid配列」「担当するiの範囲」「N/S/base/fp/tp」といった構造化複製
- * 可能なデータのみを渡す。Worker側はsearch-core.js(importScripts経由で読み込み、
- * メインスレッドと同一の実体)を使って自前で計算する。
+ * Workerには関数そのものではなく構造化複製可能なプレーンデータのみを渡す。
+ * starBonuses(改修値の組み合わせ)とpaths(パイプラインの分岐パターン)は
+ * iStart/iEndに依存せず全チャンク共通のため、ここで1回だけ計算してから
+ * Workerへ渡す(computeSearchResults()のJSDoc参照。以前はWorker/フォールバック
+ * 呼び出しのたびに内部で再計算しており、Worker数倍の無駄な計算になっていた)。
  *
  * @param {number} N - 探索範囲(反復変数iの上限)。
  * @param {number} S - 改修スロット数。
@@ -1171,6 +1273,9 @@ function runSearchParallel(N, S, base, fp, tp) {
   const formulaIds = Array.from(
     document.querySelectorAll(".formula-cb:checked"),
   ).map((cb) => cb.value);
+  const selectedFns = resolveFormulas(formulaIds);
+  const starBonuses = buildStarBonuses(S, selectedFns);
+  const paths = generateExecutionPaths(AppState.items);
 
   const total = N + 1;
   const workerCount = Math.max(
@@ -1178,7 +1283,7 @@ function runSearchParallel(N, S, base, fp, tp) {
     Math.min(navigator.hardwareConcurrency || 4, total),
   );
   const chunks = splitIntoChunks(total, workerCount);
-  const payload = { items: AppState.items, S, base, fp, tp, formulaIds };
+  const payload = { starBonuses, paths, base, fp, tp };
 
   const tasks = chunks.map((chunk) => runWorkerChunk(chunk, payload));
 
@@ -1189,7 +1294,7 @@ function runSearchParallel(N, S, base, fp, tp) {
         "Web Workerでの並列探索に失敗したため、単一スレッドでの逐次計算にフォールバックします。",
         err,
       );
-      return [runSearchSequential(N, S, base, fp, tp, formulaIds)];
+      return [runSearchSequential(starBonuses, paths, N, base, fp, tp)];
     })
     .then(mergeResultsAndRender);
 }
@@ -1243,7 +1348,7 @@ function flashSearchCompletion() {
  * 「探索実行ボタンを押した時」だけ読み取ってここに反映する(executeSearch()参照)。
  *
  * 【変更履歴】以前は入力欄のonchangeで即座にこの値を更新し再描画していたが、
- * renderTable()は結果全件をソートしテーブルHTMLを丸ごと作り直すため、
+ * renderTable()は結果ぶんのテーブルHTMLを丸ごと作り直すため、
  * 結果件数が多いと桁数を変えるだけで毎回重い再描画が走ってしまっていた。
  * 「桁数はどうせ実行時に見るものが決まればよい」という判断で、入力欄の変更には
  * 反応せず、次の探索実行時にまとめて反映する方式にした。
@@ -1258,8 +1363,10 @@ let displayDecimals = 5;
  * @type {Array<{ k: string, l: string }>}
  */
 const RESULT_COLUMNS = [
-  { k: "x", l: "最低保証火力+表示火力+表示雷装" },
-  { k: "starLabel", l: "改修効果" },
+  { k: "baseX", l: "最低保証火力+表示火力+表示雷装" },
+  { k: "starLabel", l: "改修効果式" },
+  { k: "starSum", l: "改修効果値" },
+  { k: "x", l: "x" },
   { k: "pathName", l: "共通分岐" },
   { k: "resA", l: "A(x)" },
   { k: "resB", l: "B(x)" },
@@ -1335,12 +1442,24 @@ function setSort(col, event) {
  * 上限そのものがなく、文字列がJSエンジンの最大文字列長を超えて
  * `RangeError: Invalid string length` で描画がクラッシュすることもあった)。
  * 「一度に見るのは現実的にも数百〜千件程度で十分」という判断で、1000件ずつの
- * ページ送りに変更した。全件のデータ自体は AppState.results に残っており、
- * 「結果をTSVでコピー」からは引き続き全件(ページ送りの影響を受けない)取得できる。
+ * ページ送りに変更した。
+ *
+ * 【修正履歴】その後、1000行表示時にウィンドウのリサイズが重い(1回のリサイズで
+ * 約60〜70msのレイアウト再計算)という報告があり、実測したところコストは
+ * 表示行数にほぼ比例していた(1000行→約65ms, 500行→約22ms, 200行→約8ms)。
+ * table-layout:fixed(既存の対策)は列幅決定のO(行数)コストは解消するが、
+ * 各行そのものの配置計算までは省略できない。content-visibility:auto
+ * (画面外要素のレイアウトを省略する仕組み)も試したが、CDP経由の実測で
+ * <table>の行(<tr>)には効果がないことを確認した(テーブルのレイアウト
+ * アルゴリズムとの相性による既知の制限)。そのため表示件数を200件まで
+ * 減らし、体感で滑らかな範囲(60fpsの目安である16ms/フレームを大きく
+ * 下回る約8ms)に収めている。全件のデータ自体は AppState.results に
+ * 残っており、「結果をTSVでコピー」からは引き続き全件
+ * (ページ送りの影響を受けない)取得できる。
  *
  * @type {number}
  */
-const PAGE_SIZE = 1000;
+const PAGE_SIZE = 200;
 
 /**
  * 結果テーブルの表示ページを相対的に切り替える(前へ/次へボタンのonclickから呼ばれる)。
@@ -1405,14 +1524,21 @@ function renderTable() {
 
   // 巨大なテンプレートリテラルの += を毎回行うと中間文字列の再生成コストが
   // 積み重なるため、行ごとの文字列は配列に貯めて最後に1回だけ join する。
+  //
+  // r.pathName は共通行候補の名称(cand.name、ユーザーが自由入力できる文字列)を
+  // 連結したものであり、他のフィールド(数値、または STAR_FORMULAS 由来の
+  // 固定書式の starLabel)と異なりユーザー入力をそのまま含みうる。escapeHtml()
+  // を通さず innerHTML に埋め込むとXSSになるため、ここで必ずエスケープする。
   const rowsHtml = rowsToRender.map((r) => {
     const diffClass =
       r.diff > 0 ? "text-red-700 bg-red-50" : "text-blue-700 bg-blue-50";
     return `
       <tr class="border-b border-gray-300 hover:bg-gray-50">
-        <td class="p-2 border-r border-gray-300 font-mono whitespace-nowrap">${r.x}</td>
-        <td class="p-2 border-r border-gray-300 text-gray-600 break-words">${formatStarLabel(r)}</td>
-        <td class="p-2 border-r border-gray-300 break-words">${r.pathName}</td>
+        <td class="p-2 border-r border-gray-300 font-mono whitespace-nowrap">${r.baseX}</td>
+        <td class="p-2 border-r border-gray-300 text-gray-600 break-words">${r.starLabel}</td>
+        <td class="p-2 border-r border-gray-300 font-mono whitespace-nowrap">${r.starSum.toFixed(displayDecimals)}</td>
+        <td class="p-2 border-r border-gray-300 font-mono whitespace-nowrap">${r.x.toFixed(displayDecimals)}</td>
+        <td class="p-2 border-r border-gray-300 break-words">${escapeHtml(r.pathName)}</td>
         <td class="p-2 border-r border-gray-300 font-mono font-bold text-blue-900 bg-blue-50/50 whitespace-nowrap">${r.resA.toFixed(displayDecimals)}</td>
         <td class="p-2 border-r border-gray-300 font-mono font-bold text-red-900 bg-red-50/50 whitespace-nowrap">${r.resB.toFixed(displayDecimals)}</td>
         <td class="p-2 border-r border-gray-300 font-mono font-bold ${diffClass} whitespace-nowrap">${r.diff > 0 ? "+" : ""}${r.diff.toFixed(displayDecimals)}</td>
@@ -1424,19 +1550,6 @@ function renderTable() {
   rangeLabel.textContent = `${(startIdx + 1).toLocaleString()}–${endIdx.toLocaleString()} / 全${total.toLocaleString()}件`;
   prevBtn.disabled = AppState.page <= 0;
   nextBtn.disabled = AppState.page >= totalPages - 1;
-}
-
-/**
- * 結果1件分の「改修効果」列の表示文字列を組み立てる。
- * S=0(改修なし)の場合は特別値 "0" のみを返し、内訳や合計値の括弧書きは付けない。
- * それ以外は「(関数,★)の内訳 (+合計値)」の形式にし、合計値は現在の displayDecimals で丸める。
- *
- * @param {object} r - AppState.results の1要素 (starLabel/starSum を持つ)。
- * @returns {string}
- */
-function formatStarLabel(r) {
-  if (r.starLabel === "0") return "0";
-  return `${r.starLabel} (+${r.starSum.toFixed(displayDecimals)})`;
 }
 
 /**
@@ -1461,9 +1574,10 @@ function escapeTsvField(value) {
  * クリップボードにコピーする。列構成は RESULT_COLUMNS / renderTable() の
  * テーブル表示と同じにする(数値は現在の displayDecimals で丸めて表示値と一致させる)。
  *
- * CSV(カンマ区切り)ではなくTSV(タブ区切り)にしているのは、「改修効果」列の値に
- * `[3,5]` のようにカンマを含むものがあり、CSVのままだと表計算ソフトに貼り付けた際に
- * 列がズレて見えることがあるため。タブ区切りなら貼り付け先で1セル=1フィールドとして
+ * CSV(カンマ区切り)ではなくTSV(タブ区切り)にしているのは、「共通分岐」列
+ * (r.pathName)がユーザーが自由入力した候補名(cand.name)を含み、その中に
+ * カンマが使われる可能性があるため。CSVのままだと表計算ソフトに貼り付けた際に
+ * 列がズレて見えることがあるが、タブ区切りなら貼り付け先で1セル=1フィールドとして
  * 素直に認識される。
  *
  * ゲーム内で個々の反例を再現・検証する際に、Excel等へ貼り付けて整理できるようにする。
@@ -1472,8 +1586,10 @@ function copyResultsAsTsv() {
   const headerRow = RESULT_COLUMNS.map((c) => escapeTsvField(c.l)).join("\t");
   const dataRows = AppState.results.map((r) =>
     [
-      r.x,
-      formatStarLabel(r),
+      r.baseX,
+      r.starLabel,
+      r.starSum.toFixed(displayDecimals),
+      r.x.toFixed(displayDecimals),
       r.pathName,
       r.resA.toFixed(displayDecimals),
       r.resB.toFixed(displayDecimals),
@@ -1497,308 +1613,3 @@ function copyResultsAsTsv() {
     },
   );
 }
-
-// === 8. グラフ描画 (無効化) ===
-//
-// 【廃止履歴】A(x)/B(x)をChart.jsで折れ線グラフ表示する機能を実装したが、
-// 「交戦形態補正」以外の共通行(共通補正)を新規追加した場合に、その内容が
-// グラフに正しく反映されない不具合が見つかった。原因調査・修正の手間が
-// 見合わないとユーザーが判断したため、機能を撤去せず以下をまとめて
-// コメントアウトして無効化した(復活させたい場合はここを参照)。
-// あわせて index.html 側の Chart.js / chartjs-plugin-zoom の読み込みと
-// セクション4のマークアップもコメントアウトしてある。
-//
-// // === 8. グラフ描画 ===
-// //
-// // A(x)・B(x)を、現在の基本攻撃力設定(最低保証火力+表示火力+表示雷装 〜 +探索範囲N)の
-// // 範囲でxを連続的に動かした折れ線としてChart.jsで描画する。
-// // 探索結果(AppState.results)は「改修値★や共通行の分岐をすべて総当たりした結果」だが、
-// // グラフはあくまで「1つの共通行分岐の組み合わせ」を選んで、その上でxを連続的に動かした
-// //ときにA(x)/B(x)がどう振る舞うかを見るためのものなので、探索結果とは独立している。
-// // 改修効果(★)は、含めると x 1点につき改修パターン数ぶんの値ができてしまい単純な
-// // 折れ線にならないため、グラフでは含めない(結果テーブルの「x」列と同じ、改修効果を
-// // 除いた値をそのままグラフのxとして使う)。
-//
-// /**
-//  * 共通行ごとに、グラフ計算で使う候補のインデックスを保持する。
-//  * key: 共通行のid, value: 選択中の候補インデックス (未選択なら0番目扱い)。
-//  * AppState.items のような「取り消し(Undo)対象のデータ」ではなく、
-//  * グラフ描画のためだけのUI状態なので AppState の外に持つ。
-//  *
-//  * @type {Record<string, number>}
-//  */
-// let graphBranchSelection = {};
-//
-// /** @type {?Chart} 描画済みのChart.jsインスタンス。同一モードの間は破棄せず update() で使い回す。 */
-// let abChart = null;
-//
-// /**
-//  * グラフの表示モード。'ab' は A(x)/B(x) の2本線、'diff' は差分 A(x)-B(x) の1本線
-//  * (y=0の基準線つき)。タブボタン(setGraphMode)で切り替える。
-//  * @type {'ab'|'diff'}
-//  */
-// let graphMode = "ab";
-//
-// /** @type {?string} abChart が現在どちらのモードで構築されているか。モードが変わったら再構築が必要。 */
-// let abChartMode = null;
-//
-// /**
-//  * グラフの表示モードを切り替える(表示モードタブのonclickから呼ばれる)。
-//  *
-//  * @param {'ab'|'diff'} mode
-//  */
-// function setGraphMode(mode) {
-//   graphMode = mode;
-//   updateGraphModeButtons();
-//   updateGraph();
-// }
-//
-// /**
-//  * 表示モードタブボタンの見た目(選択中/非選択)を graphMode に合わせて更新する。
-//  * 選択中は「差分網羅探索を実行」ボタン等と同じ強調色(bg-emp-2)、
-//  * 非選択は他の追加系ボタンと同じ bg-white/70 にする。
-//  */
-// function updateGraphModeButtons() {
-//   const abBtn = document.getElementById("graphModeAbBtn");
-//   const diffBtn = document.getElementById("graphModeDiffBtn");
-//   const activate = (btn, active) => {
-//     btn.classList.toggle("bg-emp-2", active);
-//     btn.classList.toggle("font-bold", active);
-//     btn.classList.toggle("bg-white/70", !active);
-//   };
-//   activate(abBtn, graphMode === "ab");
-//   activate(diffBtn, graphMode === "diff");
-// }
-//
-// /**
-//  * 現在の AppState.items から、グラフ計算用の単一の(分岐しない)パスを構築する。
-//  * generateExecutionPaths() は共通行の候補ごとに全組み合わせへ分岐するが、
-//  * グラフは1本の折れ線として描くため、共通行では graphBranchSelection で
-//  * 選択中の候補1つだけを採用する(候補が0件の共通行は何も適用しない=恒等関数)。
-//  *
-//  * @returns {{ pathA: object[], pathB: object[] }}
-//  */
-// function buildGraphPath() {
-//   const pathA = [];
-//   const pathB = [];
-//   for (const item of AppState.items) {
-//     if (item.kind === "node") {
-//       (item.col === "a" ? pathA : pathB).push(item);
-//     } else if (item.kind === "common" && item.candidates.length > 0) {
-//       const idx = Math.min(
-//         graphBranchSelection[item.id] || 0,
-//         item.candidates.length - 1,
-//       );
-//       const cand = item.candidates[idx];
-//       pathA.push(cand);
-//       pathB.push(cand);
-//     }
-//   }
-//   return { pathA, pathB };
-// }
-//
-// /**
-//  * 複数候補を持つ共通行ごとに、グラフ用の候補選択プルダウンを #graphBranchSelectors に描画する。
-//  * 候補が1つ以下の共通行は選ぶ余地がないため表示しない。
-//  * パイプラインの構成(共通行の追加・削除・候補の増減)が変わるたびに呼び直す必要がある。
-//  */
-// function renderGraphControls() {
-//   const container = document.getElementById("graphBranchSelectors");
-//   const commons = AppState.items.filter(
-//     (item) => item.kind === "common" && item.candidates.length > 1,
-//   );
-//
-//   container.innerHTML = commons
-//     .map((item) => {
-//       const selectedIdx = graphBranchSelection[item.id] || 0;
-//       const options = item.candidates
-//         .map(
-//           (c, idx) =>
-//             `<option value="${idx}" ${idx === selectedIdx ? "selected" : ""}>${escapeHtml(c.name || "(無名)")}</option>`,
-//         )
-//         .join("");
-//       return `
-//       <div class="flex flex-col">
-//         <label class="text-xs text-gray-600 mb-1">${escapeHtml(item.name || "共通補正")}</label>
-//         <select class="sheet-input rounded text-left" onchange="setGraphBranch('${item.id}', this.value)">
-//           ${options}
-//         </select>
-//       </div>
-//     `;
-//     })
-//     .join("");
-// }
-//
-// /**
-//  * グラフ計算に使う共通行の候補を変更する(候補選択プルダウンのonchangeから呼ばれる)。
-//  *
-//  * @param {string} commonId - 対象の共通行のid。
-//  * @param {string} idxStr - 選択された候補のインデックス(文字列)。
-//  */
-// function setGraphBranch(commonId, idxStr) {
-//   graphBranchSelection[commonId] = parseInt(idxStr) || 0;
-//   updateGraph();
-// }
-//
-// /** グラフの最大サンプリング点数。探索範囲Nが大きくても描画が重くならないよう間引く。 */
-// const MAX_GRAPH_POINTS = 300;
-//
-// /**
-//  * 現在の基本攻撃力設定とパイプライン構成から A(x)/B(x) を計算し、#abChart を再描画する。
-//  *
-//  * xの範囲は [最低保証火力+表示火力+表示雷装, 同+探索範囲N] (結果テーブルの「x」列と
-//  * 同じ定義)。iは常に整数なのでxも本来1刻みの整数列だが、N+1点すべてを描画すると
-//  * (Nが大きい場合)重くなるため、MAX_GRAPH_POINTS を超える場合は間引いてサンプリングする
-//  * (末尾の点=xの最大値は間引かれても必ず含める)。
-//  */
-// function updateGraph() {
-//   const { N, base, fp, tp } = readBaseInputs();
-//   const xMin = base + fp + tp;
-//   const totalPoints = N + 1;
-//   const step = Math.max(1, Math.ceil(totalPoints / MAX_GRAPH_POINTS));
-//
-//   const { pathA, pathB } = buildGraphPath();
-//   const labels = [];
-//   const dataA = [];
-//   const dataB = [];
-//   const dataDiff = [];
-//
-//   const sample = (x) => {
-//     const valA = applyPipeline(x, pathA);
-//     const valB = applyPipeline(x, pathB);
-//     labels.push(x);
-//     dataA.push(valA);
-//     dataB.push(valB);
-//     dataDiff.push(valA - valB);
-//   };
-//
-//   for (let i = 0; i <= N; i += step) sample(xMin + i);
-//   // 間引きによってxの最大値(i=N)が含まれずに終わっている場合、最後に追加する。
-//   if (labels[labels.length - 1] !== xMin + N) sample(xMin + N);
-//
-//   renderAbChart(labels, dataA, dataB, dataDiff);
-// }
-//
-// /**
-//  * #abChart(Chart.jsの折れ線グラフ)にデータを描画する。graphMode に応じて
-//  * 「A(x)/B(x)の2本線」または「差分A(x)-B(x)の1本線(y=0の基準線つき)」を出し分ける。
-//  *
-//  * 同じモードのまま値だけ更新する場合はデータを差し替えて update() を呼ぶだけにする
-//  * (毎回破棄・再生成すると描画がちらつく上、ズーム状態も失われるため)。
-//  * モード自体が切り替わった場合は、データセットの本数・内容が変わるため
-//  * 一度 destroy() してから作り直す。
-//  *
-//  * @param {number[]} labels - x軸に表示するxの値の配列。
-//  * @param {number[]} dataA - 各xに対応するA(x)の値。
-//  * @param {number[]} dataB - 各xに対応するB(x)の値。
-//  * @param {number[]} dataDiff - 各xに対応する差分 A(x)-B(x) の値。
-//  */
-// function renderAbChart(labels, dataA, dataB, dataDiff) {
-//   const needsRebuild = !abChart || abChartMode !== graphMode;
-//
-//   if (!needsRebuild) {
-//     abChart.data.labels = labels;
-//     if (graphMode === "ab") {
-//       abChart.data.datasets[0].data = dataA;
-//       abChart.data.datasets[1].data = dataB;
-//     } else {
-//       abChart.data.datasets[0].data = dataDiff;
-//       abChart.data.datasets[1].data = labels.map(() => 0);
-//     }
-//     abChart.update();
-//     return;
-//   }
-//
-//   if (abChart) abChart.destroy();
-//   abChartMode = graphMode;
-//
-//   const datasets =
-//     graphMode === "ab"
-//       ? [
-//           {
-//             label: "A(x)",
-//             data: dataA,
-//             borderColor: "#1e3a8a",
-//             backgroundColor: "transparent",
-//             borderWidth: 2,
-//             pointRadius: 0,
-//           },
-//           {
-//             label: "B(x)",
-//             data: dataB,
-//             borderColor: "#991b1b",
-//             backgroundColor: "transparent",
-//             borderWidth: 2,
-//             pointRadius: 0,
-//           },
-//         ]
-//       : [
-//           {
-//             label: "A(x)-B(x)",
-//             data: dataDiff,
-//             borderColor: "#6b21a8",
-//             backgroundColor: "transparent",
-//             borderWidth: 2,
-//             pointRadius: 0,
-//           },
-//           {
-//             // 差分0(=一致)の基準線。値を持つデータ系列ではなく参照線なので、
-//             // 凡例フィルタで隠す必要はないが破線・細線・グレーにして主役の
-//             // 差分ラインと区別する。
-//             label: "y = 0",
-//             data: labels.map(() => 0),
-//             borderColor: "#9ca3af",
-//             borderDash: [4, 4],
-//             borderWidth: 1,
-//             pointRadius: 0,
-//           },
-//         ];
-//
-//   const ctx = document.getElementById("abChart").getContext("2d");
-//   abChart = new Chart(ctx, {
-//     type: "line",
-//     data: { labels: labels, datasets: datasets },
-//     options: {
-//       responsive: true,
-//       maintainAspectRatio: false,
-//       animation: false,
-//       scales: {
-//         x: { title: { display: true, text: "x" } },
-//         y: {
-//           title: {
-//             display: true,
-//             text: graphMode === "ab" ? "y" : "A(x)-B(x)",
-//           },
-//         },
-//       },
-//       plugins: {
-//         legend: { display: true },
-//         // chartjs-plugin-zoom: ホイールでズーム、ドラッグでパン。
-//         // x/y両軸とも対象(mode:'xy')にしているのは、softcapの折れ曲がり付近など
-//         // 値の微妙な違いを見たい場面ではy軸方向の拡大も必要になるため。
-//         zoom: {
-//           zoom: {
-//             wheel: { enabled: true },
-//             pinch: { enabled: true },
-//             mode: "xy",
-//           },
-//           pan: {
-//             enabled: true,
-//             mode: "xy",
-//           },
-//         },
-//       },
-//     },
-//   });
-// }
-//
-// /**
-//  * パイプラインの構成が変わった(共通行の追加・削除・候補の増減など)場合に呼ぶ。
-//  * 候補選択プルダウンの再生成とグラフの再計算の両方を行う。
-//  * 値の変更だけ(a/b/cap等)で構成自体は変わらない場合は updateGraph() のみでよい。
-//  */
-// function refreshGraph() {
-//   renderGraphControls();
-//   updateGraphModeButtons();
-//   updateGraph();
-// }

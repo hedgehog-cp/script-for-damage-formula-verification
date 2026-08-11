@@ -13,21 +13,25 @@
  * 読み込む(Workerには<script>タグの代わりにこの仕組みを使う。また
  * Workerはメインスレッドの関数・クロージャを直接参照できないため、
  * postMessageで運べない関数はここで自前に読み込み直す必要がある)。
+ *
+ * starBonuses/paths(改修値の組み合わせ・パイプラインの分岐パターン)は
+ * iStart/iEndに依存せず全Workerで共通のため、各Workerが個別に
+ * buildStarBonuses()/generateExecutionPaths() を計算し直すのではなく、
+ * メインスレッド側で1回だけ計算した結果をそのまま受け取る
+ * (computeSearchResults()のJSDoc参照)。
  */
 importScripts("search-core.js");
 
 self.onmessage = (e) => {
-  const { items, iStart, iEnd, S, base, fp, tp, formulaIds } = e.data;
-  const selectedFns = resolveFormulas(formulaIds);
-  const results = computeSearchResults(
-    items,
+  const { starBonuses, paths, iStart, iEnd, base, fp, tp } = e.data;
+  const results = computeSearchResults({
+    starBonuses,
+    paths,
     iStart,
     iEnd,
-    S,
     base,
     fp,
     tp,
-    selectedFns,
-  );
+  });
   self.postMessage({ results });
 };

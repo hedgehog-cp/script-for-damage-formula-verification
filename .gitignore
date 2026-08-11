@@ -1,3 +1,6 @@
+.claude/*
+.repositories/*
+.spreadsheet/*
 .vscode/*
 dist/*
 node_modules/*
